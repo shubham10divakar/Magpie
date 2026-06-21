@@ -126,3 +126,21 @@ select, input[type=date], input, textarea {
 .modal-card h3 { margin: 0 0 6px; }
 .modal-card input { width: 100%; margin: 10px 0; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
+/* Feed import modal */
+.feed-modal-card { position: relative; width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+.feed-url-row { display: flex; gap: 8px; margin: 10px 0 4px; }
+.feed-url-row input { flex: 1; margin: 0; }
+.feed-url-row button { white-space: nowrap; }
+.feed-cancel-top { position: absolute; top: 12px; right: 16px; }
+.feed-cancel-top button { padding: 4px 8px; font-size: 12px; }
+.feed-list { overflow-y: auto; max-height: 340px; border: 1px solid var(--border);
+  border-radius: 8px; margin: 10px 0 0; }
+.feed-item { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px;
+  border-bottom: 1px solid var(--border); cursor: pointer; flex-wrap: wrap; }
+.feed-item:last-child { border-bottom: none; }
+.feed-item:hover { background: var(--accent-soft); }
+.feed-item input[type=checkbox] { flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+.feed-title { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; word-break: break-word; }
+.feed-author { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.feed-date { font-size: 11px; color: var(--muted); white-space: nowrap; }

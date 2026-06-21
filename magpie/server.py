@@ -162,6 +162,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/category":
                 hub.create_category(body.get("category", ""), body.get("subcategory", ""))
                 return self._send_json({"ok": True})
+
+            if path == "/api/capture/rss":
+                items = capture.capture_feed(
+                    body.get("url", ""),
+                    limit=int(body.get("limit", 30)),
+                )
+                return self._send_json({"items": items})
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)
         self._send_json({"error": "not found"}, 404)

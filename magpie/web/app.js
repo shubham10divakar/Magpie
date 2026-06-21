@@ -322,6 +322,95 @@ function applySuggestion(s) {
 function openCapture() { el("capture-modal").classList.remove("hidden"); el("capture-url").focus(); }
 function closeCapture() { el("capture-modal").classList.add("hidden"); el("capture-url").value = ""; el("capture-status").textContent = ""; }
 
+// ---------------------------------------------------------------------------
+// Feed import
+// ---------------------------------------------------------------------------
+let FEED_ITEMS = [];
+
+function openFeed() {
+  el("feed-modal").classList.remove("hidden");
+  el("feed-url").focus();
+  el("feed-list").classList.add("hidden");
+  el("feed-list").innerHTML = "";
+  el("feed-actions").classList.add("hidden");
+  el("feed-status").textContent = "";
+}
+
+function closeFeed() {
+  el("feed-modal").classList.add("hidden");
+  el("feed-url").value = "";
+  el("feed-status").textContent = "";
+  el("feed-list").innerHTML = "";
+  el("feed-list").classList.add("hidden");
+  el("feed-actions").classList.add("hidden");
+  FEED_ITEMS = [];
+}
+
+async function doFeedFetch() {
+  const url = el("feed-url").value.trim();
+  if (!url) return;
+  el("feed-status").textContent = "Fetching feed…";
+  el("feed-list").classList.add("hidden");
+  el("feed-actions").classList.add("hidden");
+  try {
+    const data = await api("/api/capture/rss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, limit: 30 }),
+    });
+    FEED_ITEMS = data.items || [];
+    if (!FEED_ITEMS.length) { el("feed-status").textContent = "Feed is empty or unreadable."; return; }
+    el("feed-status").textContent = `${FEED_ITEMS.length} item${FEED_ITEMS.length !== 1 ? "s" : ""} found — pick what to import.`;
+    renderFeedList();
+  } catch (e) {
+    el("feed-status").textContent = "Error: " + e.message;
+  }
+}
+
+function renderFeedList() {
+  const list = el("feed-list");
+  list.innerHTML = "";
+  FEED_ITEMS.forEach((item, i) => {
+    const row = document.createElement("label");
+    row.className = "feed-item";
+    const pub = item.published ? `<span class="feed-date">${item.published}</span>` : "";
+    const src = item.author ? `<span class="feed-author">${item.author}</span>` : "";
+    row.innerHTML = `
+      <input type="checkbox" class="feed-cb" data-idx="${i}" checked />
+      <span class="feed-title">${item.title}</span>
+      ${src}${pub}`;
+    list.appendChild(row);
+  });
+  list.classList.remove("hidden");
+  el("feed-actions").classList.remove("hidden");
+}
+
+async function doFeedImport() {
+  const checked = [...document.querySelectorAll(".feed-cb:checked")].map((cb) => parseInt(cb.dataset.idx));
+  if (!checked.length) { el("feed-status").textContent = "Nothing selected."; return; }
+  el("feed-status").textContent = `Saving ${checked.length} item${checked.length !== 1 ? "s" : ""}…`;
+  let saved = 0;
+  for (const i of checked) {
+    const f = FEED_ITEMS[i];
+    try {
+      await api("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: f.title, category: "Inbox", subcategory: "",
+          type: f.type || "link", tags: f.tags || [],
+          links: f.links || [], source: f.source,
+          body: f.body || "",
+        }),
+      });
+      saved++;
+    } catch (_) {}
+  }
+  el("feed-status").textContent = `Saved ${saved} note${saved !== 1 ? "s" : ""} to Inbox ✓`;
+  await loadTree();
+  setTimeout(closeFeed, 1200);
+}
+
 async function doCapture() {
   const url = el("capture-url").value.trim();
   if (!url) return;
@@ -367,6 +456,19 @@ function wire() {
   el("btn-capture").onclick = openCapture;
   el("capture-go").onclick = doCapture;
   el("capture-cancel").onclick = closeCapture;
+  el("capture-url").addEventListener("keydown", (e) => { if (e.key === "Enter") doCapture(); });
+  el("btn-feed").onclick = openFeed;
+  el("feed-fetch").onclick = doFeedFetch;
+  el("feed-url").addEventListener("keydown", (e) => { if (e.key === "Enter") doFeedFetch(); });
+  el("feed-import").onclick = doFeedImport;
+  el("feed-cancel").onclick = closeFeed;
+  el("feed-close").onclick = closeFeed;
+  el("feed-check-all").onclick = () => {
+    const cbs = [...document.querySelectorAll(".feed-cb")];
+    const allChecked = cbs.every((cb) => cb.checked);
+    cbs.forEach((cb) => { cb.checked = !allChecked; });
+    el("feed-check-all").textContent = allChecked ? "Select all" : "Deselect all";
+  };
   el("e-category").oninput = () => populateSubSelect();
   el("e-body").oninput = updatePreview;
   el("btn-save").onclick = saveNote;

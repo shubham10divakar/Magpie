@@ -13,6 +13,7 @@
     <div class="actions">
       <button id="btn-new" class="primary">+ New</button>
       <button id="btn-capture">🔗 Capture</button>
+      <button id="btn-feed">📡 Feed</button>
       <button id="btn-refresh" title="Refresh">⟳</button>
     </div>
   </header>
@@ -113,12 +114,33 @@
   <div id="capture-modal" class="modal hidden">
     <div class="modal-card">
       <h3>Capture from URL</h3>
-      <p class="muted">Paste a link (article, X/Twitter post…). It’ll be fetched and filed into Inbox.</p>
+      <p class="muted">Paste a link — article, X/Twitter post, YouTube video. Fetched &amp; filed to Inbox.</p>
       <input id="capture-url" placeholder="https://…" />
       <div id="capture-status" class="muted"></div>
       <div class="modal-actions">
         <button id="capture-go" class="primary">Fetch &amp; Save</button>
         <button id="capture-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feed import modal -->
+  <div id="feed-modal" class="modal hidden">
+    <div class="modal-card feed-modal-card">
+      <h3>Import RSS / Atom Feed</h3>
+      <div class="feed-url-row">
+        <input id="feed-url" placeholder="https://…/feed or …/rss.xml" />
+        <button id="feed-fetch" class="primary">Fetch</button>
+      </div>
+      <div id="feed-status" class="muted"></div>
+      <div id="feed-list" class="feed-list hidden"></div>
+      <div id="feed-actions" class="modal-actions hidden">
+        <button id="feed-check-all">Select all</button>
+        <button id="feed-import" class="primary">Import selected</button>
+        <button id="feed-cancel">Cancel</button>
+      </div>
+      <div id="feed-cancel-top" class="feed-cancel-top">
+        <button id="feed-close">✕ Close</button>
       </div>
     </div>
   </div>
