@@ -28,7 +28,7 @@ try {{
     $texts.Item(0).AppendChild($template.CreateTextNode('{safe_title}')) | Out-Null
     $texts.Item(1).AppendChild($template.CreateTextNode('{safe_msg}')) | Out-Null
     $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
-    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Idea & Project Hub')
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Magpie')
     $notifier.Show($toast)
 }} catch {{
     exit 1

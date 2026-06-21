@@ -1,4 +1,6 @@
-# 💡 Idea & Project Hub
+# 🐦 Magpie
+
+*Your idea & project hub — collect shiny things from everywhere.*
 
 A local, Markdown-first hub for collecting ideas, projects, notes, and links —
 across AI/ML, Computer Vision, IT, Pip tools, Finance, or whatever you add.

@@ -1,4 +1,4 @@
-"""server.py - local HTTP server for the Idea & Project Hub.
+"""server.py - local HTTP server for Magpie (idea & project hub).
 
 Serves the web/ UI and a JSON API at /api/*. Runs a background thread that
 periodically scans the vault for due dates and raises Windows toasts while the
@@ -206,7 +206,7 @@ def main():
 
     server = ThreadingHTTPServer((host, port), Handler)
     url = f"http://{host}:{port}/"
-    print(f"Idea & Project Hub running at {url}")
+    print(f"🐦 Magpie running at {url}")
     print("Press Ctrl+C to stop.")
     try:
         webbrowser.open(url)
