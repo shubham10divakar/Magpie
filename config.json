@@ -1,0 +1,17 @@
+{
+  "vault_path": "vault",
+  "host": "127.0.0.1",
+  "port": 8765,
+  "due_soon_days": 7,
+  "scan_interval_minutes": 30,
+  "anthropic_api_key": "",
+  "ai_model": "claude-haiku-4-5",
+  "ai_enabled": true,
+  "seed_categories": {
+    "AI-ML": ["LLM agents", "RAG", "Training", "Datasets"],
+    "Computer Vision": ["Inspection", "Tracking", "Segmentation"],
+    "IT": ["DevOps", "Automation", "Infra"],
+    "Pip Tools": ["CLI", "Libraries"],
+    "Finance": ["Markets", "Personal", "Quant"]
+  }
+}

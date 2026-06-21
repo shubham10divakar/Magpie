@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Idea &amp; Project Hub</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">💡 Idea &amp; Project Hub</div>
+    <input id="search" type="search" placeholder="Search all notes…" />
+    <div class="actions">
+      <button id="btn-new" class="primary">+ New</button>
+      <button id="btn-capture">🔗 Capture</button>
+      <button id="btn-refresh" title="Refresh">⟳</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="filters">
+        <div class="filter" data-status="inbox">📥 Inbox <span class="count" id="c-inbox">0</span></div>
+        <div class="filter" data-status="active">⚡ Active <span class="count" id="c-active">0</span></div>
+        <div class="filter" data-status="someday">💤 Someday <span class="count" id="c-someday">0</span></div>
+        <div class="filter" data-status="done">✅ Done <span class="count" id="c-done">0</span></div>
+        <div class="filter due" data-due="7">🔔 Due Soon <span class="count" id="c-due">0</span></div>
+        <div class="filter" data-all="1">🗂 All</div>
+      </div>
+      <div class="sidebar-head">Categories</div>
+      <nav id="tree" class="tree"></nav>
+      <div class="ai-status" id="ai-status"></div>
+    </aside>
+
+    <!-- List -->
+    <section class="list">
+      <div class="list-head" id="list-head">All notes</div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <!-- Editor -->
+    <section class="editor" id="editor">
+      <div class="editor-empty" id="editor-empty">Select a note, or create one with <b>+ New</b>.</div>
+      <div class="editor-body hidden" id="editor-body">
+        <input id="e-title" class="e-title" placeholder="Title" />
+        <div class="e-row">
+          <label>Type
+            <select id="e-type">
+              <option>idea</option><option>project</option>
+              <option>note</option><option>link</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="e-status">
+              <option>inbox</option><option>active</option>
+              <option>someday</option><option>done</option><option>archived</option>
+            </select>
+          </label>
+        </div>
+        <div class="e-row">
+          <label>Category <select id="e-category"></select></label>
+          <label>Subcategory <select id="e-subcategory"></select></label>
+        </div>
+        <div class="e-row">
+          <label>Due <input id="e-due" type="date" /></label>
+          <label>Remind <input id="e-remind" type="date" /></label>
+        </div>
+        <label class="full">Tags (comma separated) <input id="e-tags" placeholder="edge, yolo" /></label>
+        <label class="full">Links (one per line) <textarea id="e-links" rows="2"></textarea></label>
+        <div class="e-row tight">
+          <button id="btn-ai" title="Ask AI to suggest fields">✨ Suggest with AI</button>
+          <span id="ai-note" class="muted"></span>
+        </div>
+        <div class="split">
+          <div class="split-col">
+            <div class="split-label">Markdown</div>
+            <textarea id="e-body" class="e-body" placeholder="Write notes in markdown. Use [[wiki-links]]…"></textarea>
+          </div>
+          <div class="split-col">
+            <div class="split-label">Preview</div>
+            <div id="preview" class="preview"></div>
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button id="btn-save" class="primary">💾 Save</button>
+          <button id="btn-archive" class="danger">🗑 Archive</button>
+          <span id="save-note" class="muted"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Capture modal -->
+  <div id="capture-modal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Capture from URL</h3>
+      <p class="muted">Paste a link (article, X/Twitter post…). It’ll be fetched and filed into Inbox.</p>
+      <input id="capture-url" placeholder="https://…" />
+      <div id="capture-status" class="muted"></div>
+      <div class="modal-actions">
+        <button id="capture-go" class="primary">Fetch &amp; Save</button>
+        <button id="capture-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
