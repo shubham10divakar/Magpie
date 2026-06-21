@@ -28,9 +28,21 @@
         <div class="filter due" data-due="7">🔔 Due Soon <span class="count" id="c-due">0</span></div>
         <div class="filter" data-all="1">🗂 All</div>
       </div>
-      <div class="sidebar-head">Categories</div>
+      <div class="sidebar-head-row">
+        <span class="sidebar-head">Categories</span>
+        <button id="btn-add-cat" title="New category or subcategory">+</button>
+      </div>
+      <div id="add-cat-form" class="add-cat-form hidden">
+        <input id="new-cat" placeholder="Category name" autocomplete="off" />
+        <input id="new-sub" placeholder="Subcategory (optional)" autocomplete="off" />
+        <div class="add-cat-actions">
+          <button id="add-cat-go" class="primary">Create</button>
+          <button id="add-cat-cancel">Cancel</button>
+        </div>
+      </div>
       <nav id="tree" class="tree"></nav>
       <div class="ai-status" id="ai-status"></div>
+      <div class="rename-tip">To rename or delete a category, use your file manager on <code>~/Magpie/vault/</code> — Magpie will pick up the change on next refresh.</div>
     </aside>
 
     <!-- List -->
@@ -59,8 +71,14 @@
           </label>
         </div>
         <div class="e-row">
-          <label>Category <select id="e-category"></select></label>
-          <label>Subcategory <select id="e-subcategory"></select></label>
+          <label>Category
+            <input id="e-category" list="cat-list" placeholder="Category" autocomplete="off" />
+            <datalist id="cat-list"></datalist>
+          </label>
+          <label>Subcategory
+            <input id="e-subcategory" list="sub-list" placeholder="(none)" autocomplete="off" />
+            <datalist id="sub-list"></datalist>
+          </label>
         </div>
         <div class="e-row">
           <label>Due <input id="e-due" type="date" /></label>

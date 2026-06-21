@@ -53,7 +53,14 @@ button.danger { color: var(--red); }
 .filter:hover, .filter.active { background: var(--accent-soft); }
 .count { background: #eee; border-radius: 10px; padding: 0 7px; font-size: 11px; color: var(--muted); }
 .sidebar-head { font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--muted); margin: 8px 4px; }
+  color: var(--muted); }
+.sidebar-head-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 4px; }
+.sidebar-head-row button { padding: 1px 8px; font-size: 16px; line-height: 1.4; border-radius: 5px; }
+.add-cat-form { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.add-cat-form input { width: 100%; font-size: 13px; padding: 5px 8px; }
+.add-cat-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.add-cat-actions button { padding: 4px 10px; font-size: 12px; }
 .tree { display: flex; flex-direction: column; }
 .cat { padding: 6px 9px; border-radius: 7px; cursor: pointer; display: flex;
   justify-content: space-between; font-weight: 600; }
@@ -62,6 +69,8 @@ button.danger { color: var(--red); }
   display: flex; justify-content: space-between; color: #555; }
 .sub:hover, .sub.active { background: var(--accent-soft); }
 .ai-status { margin-top: 16px; font-size: 11px; color: var(--muted); }
+.rename-tip { margin-top: 10px; font-size: 10px; color: var(--muted); line-height: 1.5; }
+.rename-tip code { font-size: 10px; background: #eee; padding: 1px 4px; border-radius: 3px; }
 
 /* Cards */
 .list-head { padding: 12px 16px; font-weight: 700; border-bottom: 1px solid var(--border);

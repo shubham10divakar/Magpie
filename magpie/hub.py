@@ -181,11 +181,23 @@ def get_note(rel_path: str) -> dict:
 
 
 def build_tree():
-    """Return category -> {count, subcategories: {name: count}}."""
-    cfg = load_config()
+    """Return category -> {count, subcategories: {name: count}}.
+
+    Scans the vault filesystem first so manually-created folders (empty or
+    otherwise) always show up in the sidebar without needing a note in them.
+    """
+    root = vault_root()
     tree = {}
-    for cat, subs in cfg.get("seed_categories", {}).items():
-        tree[cat] = {"count": 0, "subcategories": {s: 0 for s in subs}}
+    if os.path.isdir(root):
+        for name in sorted(os.listdir(root)):
+            full = os.path.join(root, name)
+            if not os.path.isdir(full) or name.startswith("."):
+                continue
+            subs = {}
+            for sub in sorted(os.listdir(full)):
+                if os.path.isdir(os.path.join(full, sub)) and not sub.startswith("."):
+                    subs[sub] = 0
+            tree[name] = {"count": 0, "subcategories": subs}
     for path in _iter_note_paths():
         rel = _rel(path)
         cat, sub = _split_category(rel)
@@ -196,6 +208,11 @@ def build_tree():
         if sub:
             node["subcategories"][sub] = node["subcategories"].get(sub, 0) + 1
     return tree
+
+
+def create_category(category: str, subcategory: str = "") -> None:
+    rel = category if not subcategory else f"{category}/{subcategory}"
+    os.makedirs(_abs(rel), exist_ok=True)
 
 
 def status_counts():
@@ -284,6 +301,9 @@ def move_note(rel_path: str, category: str, subcategory=""):
     slug = os.path.basename(src)[:-3]
     dest = _unique_path(folder_abs, slug)
     vault_io.write_note(dest, meta, body)
+    # Only remove the source after verifying the destination was written.
+    if not os.path.exists(dest) or os.path.getsize(dest) == 0:
+        raise RuntimeError(f"Move aborted: destination not written correctly ({dest})")
     os.remove(src)
     return _rel(dest)
 

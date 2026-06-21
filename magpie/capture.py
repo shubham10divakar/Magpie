@@ -1,11 +1,13 @@
 """capture.py - fetch a URL and turn it into note fields.
 
-Generic pages: extract <title>, meta description, og: tags via stdlib html.parser.
-X/Twitter status URLs: use the public syndication endpoint (works server-side,
-which is exactly what a browser fetch gets blocked on with HTTP 402).
+Generic pages: extracts <title>, meta tags, AND full article body text via a
+paragraph extractor that skips nav/header/footer/ads.
 
-Always degrades gracefully: if rich content can't be fetched, we still return the
-URL and whatever title we found so capture never hard-fails.
+X/Twitter status URLs: use the public syndication endpoint (works server-side;
+browsers get HTTP 402).
+
+Always degrades gracefully — if rich content can't be fetched we still return
+the URL and whatever title we found so capture never hard-fails.
 """
 from __future__ import annotations
 
@@ -68,7 +70,6 @@ def _capture_tweet(url: str, tweet_id: str) -> dict:
     try:
         data = json.loads(_get(api))
     except Exception:
-        # token can drift; retry with a trivial token before giving up
         try:
             data = json.loads(_get(
                 f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=a"
@@ -87,8 +88,8 @@ def _capture_tweet(url: str, tweet_id: str) -> dict:
     author = data.get("user", {}) or {}
     name = author.get("name", "")
     handle = author.get("screen_name", "")
-    created = data.get("created_at", "")
-    # title = first meaningful (non-URL) line of text, else fall back to author
+    created = (data.get("created_at") or "")[:10]  # date only
+
     title = ""
     for line in text.strip().split("\n"):
         cleaned = re.sub(r"https?://\S+", "", line).strip()
@@ -97,11 +98,10 @@ def _capture_tweet(url: str, tweet_id: str) -> dict:
             break
     if not title:
         title = f"Tweet by @{handle}" if handle else f"Tweet {tweet_id}"
-    body = (
-        f"**{name}** (@{handle}) — {created}\n\n"
-        f"{text}\n\n"
-        f"Source: {url}"
-    )
+
+    byline = f"**{name}** (@{handle})" + (f" — {created}" if created else "")
+    body = f"{byline}\n\n{text}\n\nSource: {url}"
+
     return {
         "title": title,
         "body": body,
@@ -109,6 +109,8 @@ def _capture_tweet(url: str, tweet_id: str) -> dict:
         "source": "x",
         "type": "idea",
         "tags": [],
+        "author": name or handle,
+        "published": created,
     }
 
 
@@ -116,10 +118,14 @@ def _capture_tweet(url: str, tweet_id: str) -> dict:
 # Generic pages
 # --------------------------------------------------------------------------- #
 class _MetaParser(HTMLParser):
+    """Extract <title> and key <meta> fields including author and publish date."""
+
     def __init__(self):
         super().__init__()
         self.title = ""
         self.description = ""
+        self.author = ""
+        self.published = ""
         self._in_title = False
 
     def handle_starttag(self, tag, attrs):
@@ -128,11 +134,15 @@ class _MetaParser(HTMLParser):
         elif tag == "meta":
             a = dict(attrs)
             prop = (a.get("property") or a.get("name") or "").lower()
-            content = a.get("content") or ""
+            content = (a.get("content") or "").strip()
             if prop in ("og:title",) and not self.title:
                 self.title = content
             elif prop in ("description", "og:description") and not self.description:
                 self.description = content
+            elif prop in ("author", "og:author", "article:author", "byl") and not self.author:
+                self.author = content
+            elif prop in ("article:published_time", "og:published_time", "pubdate", "date") and not self.published:
+                self.published = content[:10]
 
     def handle_endtag(self, tag):
         if tag == "title":
@@ -143,14 +153,79 @@ class _MetaParser(HTMLParser):
             self.title = data.strip()
 
 
+class _ArticleExtractor(HTMLParser):
+    """Pull readable paragraph text, skipping boilerplate regions."""
+
+    # Tags whose subtree we skip entirely.
+    SKIP = {
+        "script", "style", "nav", "header", "footer", "aside",
+        "noscript", "iframe", "form", "button", "figure", "figcaption",
+        "menu", "dialog", "template",
+    }
+
+    def __init__(self):
+        super().__init__()
+        self._skip_depth = 0
+        self._in_p = False
+        self._buf: list[str] = []
+        self._paras: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        t = tag.lower()
+        if t in self.SKIP:
+            self._skip_depth += 1
+        if t == "p" and not self._skip_depth:
+            self._in_p = True
+            self._buf = []
+
+    def handle_endtag(self, tag):
+        t = tag.lower()
+        if t in self.SKIP and self._skip_depth:
+            self._skip_depth -= 1
+        if t == "p" and self._in_p:
+            text = " ".join(self._buf).strip()
+            # keep paragraphs that are long enough to be real content
+            if len(text) > 40:
+                self._paras.append(text)
+            self._in_p = False
+
+    def handle_data(self, data):
+        if self._in_p and not self._skip_depth:
+            chunk = data.strip()
+            if chunk:
+                self._buf.append(chunk)
+
+    def result(self) -> str:
+        return "\n\n".join(self._paras)
+
+
 def _capture_page(url: str) -> dict:
     try:
         html = _get(url)
-        parser = _MetaParser()
-        parser.feed(html)
-        title = (parser.title or url).strip()[:120]
-        desc = parser.description.strip()
-        body = f"{desc}\n\nSource: {url}" if desc else f"Source: {url}"
+
+        meta = _MetaParser()
+        meta.feed(html)
+
+        extractor = _ArticleExtractor()
+        extractor.feed(html)
+        full_text = extractor.result()
+
+        title = (meta.title or url).strip()[:120]
+
+        # Build structured note body
+        parts = []
+        if meta.author or meta.published:
+            byline = " | ".join(filter(None, [meta.author, meta.published]))
+            parts.append(f"*{byline}*")
+        if full_text:
+            # cap at ~10 000 chars to keep notes manageable
+            parts.append(full_text[:10_000])
+        elif meta.description:
+            parts.append(meta.description.strip())
+        parts.append(f"\nSource: {url}")
+
+        body = "\n\n".join(parts)
+
         return {
             "title": title,
             "body": body,
@@ -158,6 +233,10 @@ def _capture_page(url: str) -> dict:
             "source": "web",
             "type": "link",
             "tags": [],
+            "author": meta.author,
+            "published": meta.published,
+            # Full raw text forwarded to AI for richer enrichment (not stored in note).
+            "_full_text": full_text,
         }
     except Exception:
         return {
@@ -182,4 +261,6 @@ def capture(url: str) -> dict:
 
 if __name__ == "__main__":
     import sys
-    print(json.dumps(capture(sys.argv[1] if len(sys.argv) > 1 else ""), indent=2))
+    result = capture(sys.argv[1] if len(sys.argv) > 1 else "")
+    result.pop("_full_text", None)
+    print(json.dumps(result, indent=2))

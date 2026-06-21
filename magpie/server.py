@@ -158,6 +158,10 @@ class Handler(BaseHTTPRequestHandler):
                 note = hub.get_note(q["path"])
                 suggestion = ai.enrich(note.get("body", ""), (note.get("links") or [""])[0] if note.get("links") else "")
                 return self._send_json({"suggestion": suggestion})
+
+            if path == "/api/category":
+                hub.create_category(body.get("category", ""), body.get("subcategory", ""))
+                return self._send_json({"ok": True})
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)
         self._send_json({"error": "not found"}, 404)

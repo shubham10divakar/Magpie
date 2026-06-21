@@ -170,29 +170,40 @@ function renderCards(notes) {
 // Editor
 // ---------------------------------------------------------------------------
 function populateCategorySelect(selected) {
-  const sel = el("e-category");
-  sel.innerHTML = "";
-  const cats = Object.keys(TREE);
-  if (!cats.includes("Inbox")) cats.unshift("Inbox");
+  const dl = el("cat-list");
+  dl.innerHTML = "";
+  const cats = ["Inbox", ...Object.keys(TREE).filter((c) => c !== "Inbox")];
   for (const c of cats) {
-    const o = document.createElement("option");
-    o.value = c; o.textContent = c;
-    if (c === selected) o.selected = true;
-    sel.appendChild(o);
+    const o = document.createElement("option"); o.value = c; dl.appendChild(o);
   }
+  if (selected !== undefined) el("e-category").value = selected;
   populateSubSelect();
 }
 function populateSubSelect(selected) {
   const cat = el("e-category").value;
-  const sel = el("e-subcategory");
-  sel.innerHTML = '<option value="">(none)</option>';
+  const dl = el("sub-list");
+  dl.innerHTML = "";
   const subs = (TREE[cat] && TREE[cat].subcategories) ? Object.keys(TREE[cat].subcategories) : [];
   for (const s of subs) {
-    const o = document.createElement("option");
-    o.value = s; o.textContent = s;
-    if (s === selected) o.selected = true;
-    sel.appendChild(o);
+    const o = document.createElement("option"); o.value = s; dl.appendChild(o);
   }
+  if (selected !== undefined) el("e-subcategory").value = selected;
+}
+
+async function createCategory() {
+  const cat = el("new-cat").value.trim();
+  if (!cat) return;
+  const sub = el("new-sub").value.trim();
+  try {
+    await api("/api/category", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: cat, subcategory: sub }),
+    });
+    el("new-cat").value = "";
+    el("new-sub").value = "";
+    el("add-cat-form").classList.add("hidden");
+    await loadTree();
+  } catch (e) { alert("Error: " + e.message); }
 }
 
 async function openNote(path) {
@@ -300,17 +311,8 @@ function applySuggestion(s) {
   if (s.title) el("e-title").value = s.title;
   if (s.type) el("e-type").value = s.type;
   if (s.tags && s.tags.length) el("e-tags").value = s.tags.join(", ");
-  if (s.category) {
-    if (![...el("e-category").options].some((o) => o.value === s.category)) {
-      const o = document.createElement("option"); o.value = o.textContent = s.category; el("e-category").appendChild(o);
-    }
-    el("e-category").value = s.category;
-    populateSubSelect(s.subcategory || "");
-  }
-  if (s.subcategory && ![...el("e-subcategory").options].some((o) => o.value === s.subcategory)) {
-    const o = document.createElement("option"); o.value = o.textContent = s.subcategory; el("e-subcategory").appendChild(o);
-    el("e-subcategory").value = s.subcategory;
-  }
+  if (s.category) { el("e-category").value = s.category; populateSubSelect(s.subcategory || ""); }
+  if (s.subcategory) el("e-subcategory").value = s.subcategory;
   if (s.summary) el("ai-note").dataset.summary = s.summary;
 }
 
@@ -365,11 +367,22 @@ function wire() {
   el("btn-capture").onclick = openCapture;
   el("capture-go").onclick = doCapture;
   el("capture-cancel").onclick = closeCapture;
-  el("e-category").onchange = () => populateSubSelect();
+  el("e-category").oninput = () => populateSubSelect();
   el("e-body").oninput = updatePreview;
   el("btn-save").onclick = saveNote;
   el("btn-archive").onclick = archiveNote;
   el("btn-ai").onclick = aiSuggest;
+  el("btn-add-cat").onclick = () => {
+    el("add-cat-form").classList.toggle("hidden");
+    if (!el("add-cat-form").classList.contains("hidden")) el("new-cat").focus();
+  };
+  el("add-cat-go").onclick = createCategory;
+  el("add-cat-cancel").onclick = () => {
+    el("add-cat-form").classList.add("hidden");
+    el("new-cat").value = ""; el("new-sub").value = "";
+  };
+  el("new-cat").addEventListener("keydown", (e) => { if (e.key === "Enter") createCategory(); });
+  el("new-sub").addEventListener("keydown", (e) => { if (e.key === "Enter") createCategory(); });
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveNote(); }
   });

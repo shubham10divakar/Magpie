@@ -42,6 +42,36 @@ folder to override.
   `[[wiki-links]]`. **Ctrl+S** saves. Changing category/subcategory moves the file.
 - **✨ Suggest with AI** — fills in title/category/tags/summary (needs an API key).
 
+## Managing categories
+
+Categories and subcategories are just **folders** inside `~/Magpie/vault/`. Magpie
+scans the filesystem on every refresh, so any folder you create — empty or not —
+shows up in the sidebar automatically.
+
+### Adding a category or subcategory
+
+Three ways, all safe (nothing is ever overwritten):
+
+| Method | How |
+|--------|-----|
+| **UI button** | Click `+` next to "Categories" in the sidebar. Type the category name and an optional subcategory, press Enter or click Create. |
+| **Type in editor** | The Category and Subcategory fields accept free text. Type any new name while editing a note and save — the folder is created automatically. |
+| **File manager / terminal** | `mkdir` the folder inside `~/Magpie/vault/`. Magpie picks it up on next refresh even if the folder is empty. |
+
+### Renaming or deleting a category
+
+**Do this in your file manager (Explorer), not in Magpie.** The UI intentionally
+has no rename or delete buttons for categories because:
+
+- Renaming a category = moving every file inside it — risky to automate silently.
+- Deleting a category with notes in it = permanent data loss.
+
+In Explorer, rename or delete the folder under `C:\Users\<you>\Magpie\vault\` as
+you would any normal folder. The OS warns you before deleting non-empty folders.
+Magpie reflects the change on next refresh.
+
+> **Tip:** back up `~/Magpie/vault/` (or put it in git) before bulk reorganising.
+
 ## Enable AI (optional)
 
 Edit `config.json` and set your Anthropic API key:
@@ -90,6 +120,21 @@ The **code** (this repo / the installed package):
 | `magpie/default_config.json` | Template copied to `~/Magpie/config.json` on first run. |
 | `automations/` | Example scripts (`capture_x_post.py`). |
 | `pyproject.toml` / `build_exe.ps1` | pip packaging / standalone `.exe` build. |
+
+## Data safety
+
+Magpie follows a strict **add-only** rule — it never silently removes or overwrites
+your files:
+
+| Action | What actually happens |
+|--------|----------------------|
+| Create category | `mkdir` with `exist_ok=True` — harmless if the folder already exists. |
+| Move note to new category | Writes the destination file first, verifies it is non-empty, then removes the source. If the write fails the source is untouched. |
+| Archive note | Changes `status: archived` in frontmatter only — the file stays on disk. |
+| Rename / delete category | **Not in the UI** — do it in your file manager where the OS handles it safely. |
+
+Your vault is plain Markdown files. Back it up with git, Dropbox, or any tool you
+like — Magpie never touches files it doesn’t own.
 
 ## Notes / limits
 
