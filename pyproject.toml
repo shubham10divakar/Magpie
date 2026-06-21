@@ -22,8 +22,8 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/yourusername/magpie"
-Source = "https://github.com/yourusername/magpie"
+Homepage = "https://github.com/shubham10divakar/Magpie"
+Source = "https://github.com/shubham10divakar/Magpie"
 
 [project.scripts]
 magpie = "magpie.server:main"
