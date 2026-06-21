@@ -14,6 +14,7 @@
       <button id="btn-new" class="primary">+ New</button>
       <button id="btn-capture">🔗 Capture</button>
       <button id="btn-feed">📡 Feed</button>
+      <button id="btn-settings" title="AI Settings">⚙ AI</button>
       <button id="btn-refresh" title="Refresh">⟳</button>
     </div>
   </header>
@@ -141,6 +142,85 @@
       </div>
       <div id="feed-cancel-top" class="feed-cancel-top">
         <button id="feed-close">✕ Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Settings modal -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-card settings-card">
+      <h3>⚙ AI Settings</h3>
+      <p class="muted">Choose a provider. Keys are saved locally to <code>~/Magpie/config.json</code>.</p>
+
+      <div class="ai-provider-grid">
+
+        <!-- Claude -->
+        <div class="ai-card" id="card-claude">
+          <div class="ai-card-head" onclick="selectAIProvider('claude')">
+            <span class="ai-icon">🤖</span>
+            <span class="ai-name">Claude</span>
+            <span class="ai-badge ai-badge-paid">Paid</span>
+          </div>
+          <div class="ai-card-status" id="status-claude">—</div>
+          <input class="ai-key-input" id="key-claude" type="password"
+                 placeholder="sk-ant-…" autocomplete="off" />
+          <a class="ai-get-key" href="https://console.anthropic.com/" target="_blank">Get API key →</a>
+        </div>
+
+        <!-- Gemini Flash -->
+        <div class="ai-card" id="card-gemini">
+          <div class="ai-card-head" onclick="selectAIProvider('gemini')">
+            <span class="ai-icon">✨</span>
+            <span class="ai-name">Gemini Flash</span>
+            <span class="ai-badge ai-badge-free">Free tier</span>
+          </div>
+          <div class="ai-card-status" id="status-gemini">—</div>
+          <input class="ai-key-input" id="key-gemini" type="password"
+                 placeholder="AIza…" autocomplete="off" />
+          <a class="ai-get-key" href="https://aistudio.google.com/app/apikey" target="_blank">Get free key (Google account) →</a>
+        </div>
+
+        <!-- Groq -->
+        <div class="ai-card" id="card-groq">
+          <div class="ai-card-head" onclick="selectAIProvider('groq')">
+            <span class="ai-icon">⚡</span>
+            <span class="ai-name">Groq</span>
+            <span class="ai-badge ai-badge-free">Free tier</span>
+          </div>
+          <div class="ai-card-status" id="status-groq">—</div>
+          <input class="ai-key-input" id="key-groq" type="password"
+                 placeholder="gsk_…" autocomplete="off" />
+          <a class="ai-get-key" href="https://console.groq.com/keys" target="_blank">Get free key →</a>
+        </div>
+
+        <!-- Ollama -->
+        <div class="ai-card" id="card-ollama">
+          <div class="ai-card-head" onclick="selectAIProvider('ollama')">
+            <span class="ai-icon">🦙</span>
+            <span class="ai-name">Ollama</span>
+            <span class="ai-badge ai-badge-local">Local · No key</span>
+          </div>
+          <div class="ai-card-status" id="status-ollama">—</div>
+          <div id="ollama-controls" class="ollama-controls"></div>
+        </div>
+
+      </div><!-- /.ai-provider-grid -->
+
+      <div class="settings-row">
+        <label class="full">Active provider
+          <select id="sel-ai-provider">
+            <option value="auto">Auto (best available)</option>
+            <option value="claude">Claude</option>
+            <option value="gemini">Gemini Flash</option>
+            <option value="groq">Groq</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-settings-save" class="primary">Save</button>
+        <button id="btn-settings-close">Close</button>
       </div>
     </div>
   </div>

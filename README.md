@@ -72,17 +72,40 @@ Magpie reflects the change on next refresh.
 
 > **Tip:** back up `~/Magpie/vault/` (or put it in git) before bulk reorganising.
 
-## Enable AI (optional)
+## AI providers (all optional)
 
-Edit `config.json` and set your Anthropic API key:
+Click **⚙ AI** in the top bar to open the Settings panel. Magpie supports four
+providers — pick whichever fits your setup. Without any provider the app is
+fully functional; you just organise things by hand.
 
-```json
-"anthropic_api_key": "sk-ant-...",
-"ai_model": "claude-haiku-4-5"
-```
+Priority in **Auto** mode: Claude → Gemini Flash → Groq → Ollama.
 
-Or set the `ANTHROPIC_API_KEY` environment variable. Without a key the app is
-fully functional — you just organize things by hand.
+### 🤖 Claude (Anthropic) — paid, best quality
+1. Go to **[console.anthropic.com](https://console.anthropic.com/)**
+2. Sign up → **API Keys** → **Create Key**
+3. In Magpie → **⚙ AI** → paste key under Claude → **Save**
+
+### ✨ Gemini Flash (Google) — free tier, no credit card
+1,500 requests / day free with a Google account.
+1. Go to **[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)**
+2. Sign in with your Google account → **Create API key**
+3. In Magpie → **⚙ AI** → paste key under Gemini Flash → **Save**
+
+### ⚡ Groq — free tier, very fast
+14,400 requests / day free (llama-3.1 model).
+1. Go to **[console.groq.com/keys](https://console.groq.com/keys)**
+2. Sign up → **Create API key**
+3. In Magpie → **⚙ AI** → paste key under Groq → **Save**
+
+### 🦙 Ollama — local, no key, no internet, completely free
+Runs a model on your own machine. Takes ~2 GB disk space, works offline.
+1. In Magpie → **⚙ AI** → Ollama card → **Install Ollama + download model**
+   - The app downloads `OllamaSetup.exe` and runs it silently (one UAC prompt)
+   - Then pulls `llama3.2:3b` (~2 GB) — progress bar shows in the modal
+2. Done — AI works offline from this point on
+
+> **Manual install alternative:** download from [ollama.com](https://ollama.com/),
+> install, then run `ollama pull llama3.2:3b` in a terminal.
 
 ## Notifications
 
@@ -114,7 +137,8 @@ The **code** (this repo / the installed package):
 | `magpie/server.py` | Local server + API + background due-scan. |
 | `magpie/hub.py` / `vault_io.py` | Note CRUD + frontmatter read/write. |
 | `magpie/capture.py` | URL + X/Twitter capture. |
-| `magpie/ai.py` | Optional Claude enrichment. |
+| `magpie/ai.py` | Multi-provider AI enrichment (Claude, Gemini, Groq, Ollama). |
+| `magpie/ollama_setup.py` | Ollama detection, installer download, and model pull streaming. |
 | `magpie/notify.py` | Due-date scan + Windows toast. |
 | `magpie/web/` | The single-page UI. |
 | `magpie/default_config.json` | Template copied to `~/Magpie/config.json` on first run. |

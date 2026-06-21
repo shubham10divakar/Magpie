@@ -127,6 +127,38 @@ select, input[type=date], input, textarea {
 .modal-card input { width: 100%; margin: 10px 0; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 
+/* AI Settings modal */
+.settings-card { width: 680px; max-width: 96vw; }
+.ai-provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.ai-card {
+  border: 2px solid var(--border); border-radius: 10px; padding: 14px;
+  display: flex; flex-direction: column; gap: 8px; transition: border-color .15s;
+}
+.ai-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.ai-card-head {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 2px 0;
+}
+.ai-card-head:hover .ai-name { color: var(--accent); }
+.ai-icon { font-size: 18px; }
+.ai-name { font-weight: 600; font-size: 13px; }
+.ai-badge { padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.ai-badge-paid  { background: #fef3c7; color: #92400e; }
+.ai-badge-free  { background: #d1fae5; color: #065f46; }
+.ai-badge-local { background: #ede9fe; color: #4c1d95; }
+.ai-card-status { font-size: 12px; min-height: 16px; }
+.ai-ok  { color: var(--green); }
+.ai-off { color: var(--red); }
+.ai-key-input { width: 100%; font-size: 12px; padding: 5px 8px; margin: 0; }
+.ai-get-key { font-size: 11px; color: var(--accent); text-decoration: none; }
+.ai-get-key:hover { text-decoration: underline; }
+.ollama-controls { display: flex; flex-direction: column; gap: 6px; }
+.ollama-progress { margin-top: 4px; }
+.progress-bar { background: #e5e5e3; border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 4px; }
+.progress-fill { background: var(--accent); height: 100%; width: 0%; transition: width 0.4s; }
+.progress-msg { font-size: 11px; color: var(--muted); }
+.settings-row { margin: 6px 0 10px; }
+
 /* Feed import modal */
 .feed-modal-card { position: relative; width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
 .feed-url-row { display: flex; gap: 8px; margin: 10px 0 4px; }

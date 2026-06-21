@@ -310,3 +310,15 @@ def move_note(rel_path: str, category: str, subcategory=""):
 
 def archive_note(rel_path: str):
     return update_note(rel_path, {"status": "archived"})
+
+
+def update_config(fields: dict) -> None:
+    """Merge fields into ~/Magpie/config.json (non-destructive — only named keys change)."""
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (FileNotFoundError, json.JSONDecodeError):
+        cfg = {}
+    cfg.update(fields)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)

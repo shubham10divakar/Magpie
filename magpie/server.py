@@ -18,6 +18,7 @@ from . import ai
 from . import capture
 from . import hub
 from . import notify
+from . import ollama_setup
 
 PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(PKG_DIR, "web")
@@ -28,6 +29,14 @@ CONTENT_TYPES = {
     ".js": "application/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".svg": "image/svg+xml",
+}
+
+_AI_CONFIG_KEYS = {
+    "ai_provider", "ai_enabled",
+    "anthropic_api_key", "ai_model",
+    "gemini_api_key", "gemini_model",
+    "groq_api_key", "groq_model",
+    "ollama_url", "ollama_model",
 }
 
 
@@ -52,6 +61,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _query(self) -> dict:
         return {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+
+    def _stream_events(self, generator):
+        """Write Server-Sent Events from a generator to the response."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        try:
+            for event in generator:
+                msg = f"data: {json.dumps(event)}\n\n"
+                self.wfile.write(msg.encode("utf-8"))
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
 
     def log_message(self, fmt, *args):  # quieter console
         pass
@@ -97,11 +120,13 @@ class Handler(BaseHTTPRequestHandler):
         q = self._query()
         try:
             if path == "/api/tree":
+                active = ai.ai_available()
                 return self._send_json({
                     "tree": hub.build_tree(),
                     "status_counts": hub.status_counts(),
-                    "ai": ai.ai_available(),
+                    "ai": active,
                 })
+
             if path == "/api/notes":
                 due = q.get("due_within")
                 return self._send_json({"notes": hub.list_notes(
@@ -111,11 +136,44 @@ class Handler(BaseHTTPRequestHandler):
                     q=q.get("q", ""),
                     due_within=int(due) if due not in (None, "") else None,
                 )})
+
             if path == "/api/note":
                 return self._send_json({"note": hub.get_note(q["path"])})
+
             if path == "/api/due-soon":
                 days = q.get("days")
                 return self._send_json({"items": hub.due_soon(int(days) if days else None)})
+
+            if path == "/api/ai/status":
+                cfg = hub.load_config()
+                status = ai.provider_status(cfg)
+                return self._send_json({
+                    "status": status,
+                    "provider": cfg.get("ai_provider", "auto"),
+                    "active": ai.ai_available(),
+                    "keys": {
+                        "claude": cfg.get("anthropic_api_key", ""),
+                        "gemini": cfg.get("gemini_api_key", ""),
+                        "groq": cfg.get("groq_api_key", ""),
+                        "ollama_model": cfg.get("ollama_model", "llama3.2:3b"),
+                        "ollama_url": cfg.get("ollama_url", "http://localhost:11434"),
+                    },
+                })
+
+            # SSE: Ollama install (download + silent install) ---------------
+            if path == "/api/setup/ollama/install":
+                def _gen():
+                    yield from ollama_setup.download_installer_stream()
+                    yield from ollama_setup.run_installer_stream()
+                return self._stream_events(_gen())
+
+            # SSE: Ollama model pull ----------------------------------------
+            if path == "/api/setup/ollama/pull":
+                model = q.get("model", "llama3.2:3b")
+                cfg = hub.load_config()
+                url = cfg.get("ollama_url", "http://localhost:11434")
+                return self._stream_events(ollama_setup.pull_model_stream(model, url))
+
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)
         self._send_json({"error": "not found"}, 404)
@@ -151,17 +209,11 @@ class Handler(BaseHTTPRequestHandler):
                 fields = capture.capture(body.get("url", ""))
                 suggestion = None
                 if body.get("enrich", True):
-                    suggestion = ai.enrich(fields.get("body", ""), fields.get("links", [""])[0] if fields.get("links") else "")
+                    suggestion = ai.enrich(
+                        fields.get("body", ""),
+                        fields.get("links", [""])[0] if fields.get("links") else "",
+                    )
                 return self._send_json({"fields": fields, "suggestion": suggestion})
-
-            if path == "/api/note/ai-enrich":
-                note = hub.get_note(q["path"])
-                suggestion = ai.enrich(note.get("body", ""), (note.get("links") or [""])[0] if note.get("links") else "")
-                return self._send_json({"suggestion": suggestion})
-
-            if path == "/api/category":
-                hub.create_category(body.get("category", ""), body.get("subcategory", ""))
-                return self._send_json({"ok": True})
 
             if path == "/api/capture/rss":
                 items = capture.capture_feed(
@@ -169,6 +221,28 @@ class Handler(BaseHTTPRequestHandler):
                     limit=int(body.get("limit", 30)),
                 )
                 return self._send_json({"items": items})
+
+            if path == "/api/note/ai-enrich":
+                note = hub.get_note(q["path"])
+                suggestion = ai.enrich(
+                    note.get("body", ""),
+                    (note.get("links") or [""])[0] if note.get("links") else "",
+                )
+                return self._send_json({"suggestion": suggestion})
+
+            if path == "/api/category":
+                hub.create_category(body.get("category", ""), body.get("subcategory", ""))
+                return self._send_json({"ok": True})
+
+            if path == "/api/ai/config":
+                updates = {k: v for k, v in body.items() if k in _AI_CONFIG_KEYS}
+                # Don't wipe a key if the user left the field blank.
+                for key_field in ("anthropic_api_key", "gemini_api_key", "groq_api_key"):
+                    if key_field in updates and updates[key_field] == "":
+                        del updates[key_field]
+                hub.update_config(updates)
+                return self._send_json({"ok": True})
+
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)
         self._send_json({"error": "not found"}, 404)
