@@ -13,18 +13,20 @@ from __future__ import annotations
 import os
 import sys
 
-# make the app package importable when run from anywhere
-APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if APP_DIR not in sys.path:
-    sys.path.insert(0, APP_DIR)
+# Make the magpie package importable when running these scripts straight from
+# the repo (no install needed). If Magpie is pip-installed, this is harmless.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
-import ai          # noqa: E402
-import capture     # noqa: E402
-import hub         # noqa: E402
+from magpie import ai       # noqa: E402
+from magpie import capture  # noqa: E402
+from magpie import hub      # noqa: E402
 
 
 def add_note(title="Untitled", category="Inbox", subcategory="", body="", **meta):
     """Create a note in the vault. Returns its relative path."""
+    hub.ensure_home()
     meta.setdefault("source", "automation")
     return hub.create_note(category=category, subcategory=subcategory,
                            title=title, body=body, **meta)

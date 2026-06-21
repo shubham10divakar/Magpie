@@ -11,10 +11,24 @@ across AI/ML, Computer Vision, IT, Pip tools, Finance, or whatever you add.
 - **Web capture** (articles + X/Twitter posts) and **optional AI auto-organizing**.
 - **Due-soon panel + Windows toast notifications** while the app is open.
 
-## Run it
+## Install & run
 
-Double-click **`run.bat`** (or run `python server.py`). Your browser opens at
-`http://127.0.0.1:8765`.
+**From source (this repo):** double-click **`run.bat`** (or run `python -m magpie`).
+Your browser opens at `http://127.0.0.1:8765`.
+
+**As a pip tool (for other people):**
+
+```bash
+pipx install magpie-hub      # or: pip install magpie-hub
+magpie                       # launches the hub
+```
+
+**As a standalone app (no Python needed):** run `build_exe.ps1` to produce
+`dist/Magpie.exe` — a single file your friends can double-click.
+
+Your notes are created in **`~/Magpie/`** (config + `vault/`) on first run, so
+upgrades and reinstalls never touch your data. Point `MAGPIE_HOME` at another
+folder to override.
 
 ## Using it
 
@@ -54,19 +68,28 @@ See `automations/README.md`. Quick example:
 python automations/capture_x_post.py https://x.com/user/status/123
 ```
 
-## Files
+## Layout
+
+Your **data** (created at first run, never touched by upgrades):
 
 | Path | What it is |
 |------|------------|
-| `vault/` | **Your notes** (Markdown). Back this up / put it in git. |
-| `config.json` | Settings: API key, model, due window, scan interval, port. |
-| `server.py` | Local server + API + background due-scan. |
-| `hub.py` / `vault_io.py` | Note CRUD + frontmatter read/write. |
-| `capture.py` | URL + X/Twitter capture. |
-| `ai.py` | Optional Claude enrichment. |
-| `notify.py` | Due-date scan + Windows toast. |
-| `web/` | The single-page UI. |
-| `automations/` | Your scripts. |
+| `~/Magpie/vault/` | **Your notes** (Markdown). Back this up / put it in git. |
+| `~/Magpie/config.json` | Settings: API key, model, due window, scan interval, port. |
+
+The **code** (this repo / the installed package):
+
+| Path | What it is |
+|------|------------|
+| `magpie/server.py` | Local server + API + background due-scan. |
+| `magpie/hub.py` / `vault_io.py` | Note CRUD + frontmatter read/write. |
+| `magpie/capture.py` | URL + X/Twitter capture. |
+| `magpie/ai.py` | Optional Claude enrichment. |
+| `magpie/notify.py` | Due-date scan + Windows toast. |
+| `magpie/web/` | The single-page UI. |
+| `magpie/default_config.json` | Template copied to `~/Magpie/config.json` on first run. |
+| `automations/` | Example scripts (`capture_x_post.py`). |
+| `pyproject.toml` / `build_exe.ps1` | pip packaging / standalone `.exe` build. |
 
 ## Notes / limits
 

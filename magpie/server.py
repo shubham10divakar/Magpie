@@ -14,13 +14,13 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-import ai
-import capture
-import hub
-import notify
+from . import ai
+from . import capture
+from . import hub
+from . import notify
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-WEB_DIR = os.path.join(APP_DIR, "web")
+PKG_DIR = os.path.dirname(os.path.abspath(__file__))
+WEB_DIR = os.path.join(PKG_DIR, "web")
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -193,6 +193,7 @@ def _scanner_loop(interval_minutes: int):
 
 
 def main():
+    home = hub.ensure_home()
     cfg = hub.load_config()
     host = cfg.get("host", "127.0.0.1")
     port = int(cfg.get("port", 8765))
@@ -206,7 +207,8 @@ def main():
 
     server = ThreadingHTTPServer((host, port), Handler)
     url = f"http://{host}:{port}/"
-    print(f"🐦 Magpie running at {url}")
+    print(f"Magpie running at {url}")
+    print(f"   Your notes live in: {home}")
     print("Press Ctrl+C to stop.")
     try:
         webbrowser.open(url)

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import urllib.request
 
-import hub
+from . import hub
 
 API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"

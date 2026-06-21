@@ -1,5 +1,5 @@
 @echo off
 REM Launch Magpie (idea & project hub). Double-click this file.
 cd /d "%~dp0"
-python server.py
+python -m magpie
 pause

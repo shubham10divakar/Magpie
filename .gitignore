@@ -5,6 +5,12 @@ __pycache__/
 # Local runtime
 *.log
 
+# Build artifacts (pip / PyInstaller)
+build/
+dist/
+*.egg-info/
+*.spec
+
 # Keep your API key out of version control.
 # config.json is tracked, but never commit a real key in it — use the
 # ANTHROPIC_API_KEY environment variable instead, or uncomment the next line:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import subprocess
 from datetime import date
 
-import hub
+from . import hub
 
 # in-memory de-dupe: {item_path: "YYYY-MM-DD last toasted"}
 _TOASTED: dict[str, str] = {}

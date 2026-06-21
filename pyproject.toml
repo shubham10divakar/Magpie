@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magpie-hub"
+version = "0.1.0"
+description = "Magpie — a local, Markdown-first hub for collecting and organizing ideas, projects, notes, and links."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["notes", "markdown", "ideas", "projects", "obsidian", "knowledge-base"]
+authors = [{ name = "Shubham Divakar" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Environment :: Web Environment",
+    "Topic :: Office/Business",
+]
+# No runtime dependencies — Python standard library only.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/yourusername/magpie"
+Source = "https://github.com/yourusername/magpie"
+
+[project.scripts]
+magpie = "magpie.server:main"
+
+[tool.setuptools]
+packages = ["magpie"]
+
+[tool.setuptools.package-data]
+magpie = ["web/*", "default_config.json"]

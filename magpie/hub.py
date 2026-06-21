@@ -10,18 +10,30 @@ import os
 import re
 from datetime import date, datetime, timedelta
 
-import vault_io
+from . import vault_io
 
 # --------------------------------------------------------------------------- #
-# Config
+# Paths & config
 # --------------------------------------------------------------------------- #
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(APP_DIR, "config.json")
+# Code (web/, default config) lives in the installed package; the user's data
+# (config.json + vault/) lives in their home dir so upgrades never touch it.
+PKG_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CONFIG_PATH = os.path.join(PKG_DIR, "default_config.json")
+
+HOME = os.environ.get("MAGPIE_HOME") or os.path.join(
+    os.path.expanduser("~"), "Magpie"
+)
+CONFIG_PATH = os.path.join(HOME, "config.json")
+
+
+def _read_config_file() -> dict:
+    path = CONFIG_PATH if os.path.exists(CONFIG_PATH) else DEFAULT_CONFIG_PATH
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 def load_config() -> dict:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
-        cfg = json.load(fh)
+    cfg = _read_config_file()
     # allow env var to override / supply the API key
     cfg["anthropic_api_key"] = (
         os.environ.get("ANTHROPIC_API_KEY") or cfg.get("anthropic_api_key", "")
@@ -29,10 +41,30 @@ def load_config() -> dict:
     return cfg
 
 
-def vault_root() -> str:
+def ensure_home() -> str:
+    """Create ~/Magpie with config + seeded category folders on first run."""
+    os.makedirs(HOME, exist_ok=True)
+    if not os.path.exists(CONFIG_PATH):
+        with open(DEFAULT_CONFIG_PATH, "r", encoding="utf-8") as fh:
+            default = json.load(fh)
+        with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
+            json.dump(default, fh, indent=2)
     cfg = load_config()
+    root = vault_root()
+    os.makedirs(os.path.join(root, "Inbox"), exist_ok=True)
+    for cat, subs in cfg.get("seed_categories", {}).items():
+        if subs:
+            for sub in subs:
+                os.makedirs(os.path.join(root, cat, sub), exist_ok=True)
+        else:
+            os.makedirs(os.path.join(root, cat), exist_ok=True)
+    return HOME
+
+
+def vault_root() -> str:
+    cfg = _read_config_file()
     vp = cfg.get("vault_path", "vault")
-    return vp if os.path.isabs(vp) else os.path.join(APP_DIR, vp)
+    return vp if os.path.isabs(vp) else os.path.join(HOME, vp)
 
 
 # --------------------------------------------------------------------------- #
