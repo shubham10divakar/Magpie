@@ -78,7 +78,7 @@ Click **⚙ AI** in the top bar to open the Settings panel. Magpie supports four
 providers — pick whichever fits your setup. Without any provider the app is
 fully functional; you just organise things by hand.
 
-Priority in **Auto** mode: Claude → Gemini Flash → Groq → Ollama.
+Priority in **Auto** mode: Claude → Gemini Flash → Groq → Local AI Agent.
 
 ### 🤖 Claude (Anthropic) — paid, best quality
 1. Go to **[console.anthropic.com](https://console.anthropic.com/)**
@@ -97,15 +97,29 @@ Priority in **Auto** mode: Claude → Gemini Flash → Groq → Ollama.
 2. Sign up → **Create API key**
 3. In Magpie → **⚙ AI** → paste key under Groq → **Save**
 
-### 🦙 Ollama — local, no key, no internet, completely free
-Runs a model on your own machine. Takes ~2 GB disk space, works offline.
-1. In Magpie → **⚙ AI** → Ollama card → **Install Ollama + download model**
-   - The app downloads `OllamaSetup.exe` and runs it silently (one UAC prompt)
-   - Then pulls `llama3.2:3b` (~2 GB) — progress bar shows in the modal
-2. Done — AI works offline from this point on
+### 🤖 Local AI Agent — local, no key, works offline
+Uses [freeaiagent](https://pypi.org/project/freeaiagent/) — a pip package that
+runs a persistent local LLM server (Ollama or Groq backend). Completely free,
+data never leaves your machine.
 
-> **Manual install alternative:** download from [ollama.com](https://ollama.com/),
-> install, then run `ollama pull llama3.2:3b` in a terminal.
+```bash
+pip install freeaiagent   # one-time install
+freeaiagent start         # runs at localhost:7731
+```
+
+Then in Magpie → **⚙ AI** → Local AI Agent card → **Start Agent** (if installed
+but not running), or Magpie detects it automatically if it's already up.
+
+To configure the backend or pull models:
+
+```bash
+freeaiagent config set default_backend ollama
+freeaiagent config set default_model llama3.2:3b
+freeaiagent models   # list available models
+```
+
+See `freeaiagent --help` or [pypi.org/project/freeaiagent](https://pypi.org/project/freeaiagent/)
+for full docs.
 
 ## Notifications
 
@@ -137,8 +151,8 @@ The **code** (this repo / the installed package):
 | `magpie/server.py` | Local server + API + background due-scan. |
 | `magpie/hub.py` / `vault_io.py` | Note CRUD + frontmatter read/write. |
 | `magpie/capture.py` | URL + X/Twitter capture. |
-| `magpie/ai.py` | Multi-provider AI enrichment (Claude, Gemini, Groq, Ollama). |
-| `magpie/ollama_setup.py` | Ollama detection, installer download, and model pull streaming. |
+| `magpie/ai.py` | Multi-provider AI enrichment (Claude, Gemini, Groq, freeaiagent). |
+| `magpie/freeaiagent_setup.py` | Thin adapter to the freeaiagent local AI service at localhost:7731. |
 | `magpie/notify.py` | Due-date scan + Windows toast. |
 | `magpie/web/` | The single-page UI. |
 | `magpie/default_config.json` | Template copied to `~/Magpie/config.json` on first run. |

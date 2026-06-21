@@ -14,7 +14,7 @@ const AI_LABELS = {
   claude: "Claude",
   gemini: "Gemini Flash",
   groq: "Groq",
-  ollama: "Ollama (local)",
+  freeaiagent: "Local AI Agent",
 };
 
 // ---------------------------------------------------------------------------
@@ -449,21 +449,17 @@ function closeSettings() {
 async function loadAIStatus() {
   try {
     const data = await api("/api/ai/status");
-    // Set provider dropdown
     el("sel-ai-provider").value = data.provider || "auto";
-    // Highlight selected card
     document.querySelectorAll(".ai-card").forEach((c) => c.classList.remove("selected"));
     const sel = document.getElementById(`card-${data.provider}`);
     if (sel) sel.classList.add("selected");
-    // Fill key inputs (shown as dots but pre-filled)
     el("key-claude").value = data.keys.claude || "";
     el("key-gemini").value = data.keys.gemini || "";
     el("key-groq").value = data.keys.groq || "";
-    // Render status for each card
     renderProviderStatus("claude", data.status.claude);
     renderProviderStatus("gemini", data.status.gemini);
     renderProviderStatus("groq", data.status.groq);
-    renderOllamaStatus(data.status.ollama, data.keys);
+    renderLocalAIStatus(data.status.freeaiagent);
   } catch (e) {
     console.error("Could not load AI status:", e);
   }
@@ -476,39 +472,36 @@ function renderProviderStatus(name, status) {
     : `<span class="ai-off">🔴 ${status.label}</span>`;
 }
 
-function renderOllamaStatus(status, keys) {
-  const s = el("status-ollama");
-  const ctrl = el("ollama-controls");
+function renderLocalAIStatus(status) {
+  const s = el("status-freeaiagent");
+  const ctrl = el("local-ai-controls");
+  if (!status) {
+    s.innerHTML = '<span class="ai-off">🔴 Not detected</span>';
+    ctrl.innerHTML = '<code style="font-size:11px">pip install freeaiagent &amp;&amp; freeaiagent start</code>';
+    return;
+  }
 
   s.innerHTML = status.available
     ? `<span class="ai-ok">✅ ${status.label}</span>`
     : `<span class="ai-off">🔴 ${status.label}</span>`;
 
   if (status.available) {
-    // Running with model — show model selector
     const models = status.models || [];
+    ctrl.innerHTML = models.length
+      ? `<div style="font-size:11px;color:var(--muted)">Models: ${models.join(", ")}</div>`
+      : "";
+  } else if (status.installed) {
     ctrl.innerHTML = `
-      <select class="ai-key-input" id="ollama-model-sel">
-        ${models.map((m) => `<option value="${m}">${m}</option>`).join("")}
-      </select>`;
-    const sel = el("ollama-model-sel");
-    if (keys.ollama_model && models.includes(keys.ollama_model)) sel.value = keys.ollama_model;
-  } else if (status.running) {
-    // Ollama running but no model pulled yet
-    ctrl.innerHTML = `
-      <input class="ai-key-input" id="ollama-model-inp" value="${keys.ollama_model || 'llama3.2:3b'}" />
-      <button class="primary" style="margin-top:6px;width:100%" onclick="startModelPull()">Download model</button>
-      <div class="ollama-progress hidden" id="ollama-progress">
-        <div class="progress-bar"><div class="progress-fill" id="ollama-pfill"></div></div>
-        <div class="progress-msg" id="ollama-pmsg"></div>
-      </div>`;
+      <div id="agent-msg" class="progress-msg"></div>
+      <button class="primary" id="btn-start-agent" style="margin-top:6px;width:100%" onclick="startLocalAgent()">Start Agent</button>`;
   } else {
-    // Ollama not installed/running
     ctrl.innerHTML = `
-      <button class="primary" style="margin-top:6px;width:100%" onclick="startOllamaInstall()">Install Ollama + download model</button>
-      <div class="ollama-progress hidden" id="ollama-progress">
-        <div class="progress-bar"><div class="progress-fill" id="ollama-pfill"></div></div>
-        <div class="progress-msg" id="ollama-pmsg"></div>
+      <div style="font-size:11px;line-height:1.6">
+        Install once:<br>
+        <code>pip install freeaiagent</code><br>
+        Then start it:<br>
+        <code>freeaiagent start</code><br>
+        <span style="color:var(--muted)">Magpie will detect it automatically.</span>
       </div>`;
   }
 }
@@ -521,96 +514,40 @@ function selectAIProvider(name) {
 }
 
 async function saveAISettings() {
-  const ollamaModelSel = el("ollama-model-sel");
-  const ollamaModelInp = el("ollama-model-inp");
-  const ollamaModel = ollamaModelSel
-    ? ollamaModelSel.value
-    : (ollamaModelInp ? ollamaModelInp.value.trim() : "");
-
   const cfg = {
     ai_provider: el("sel-ai-provider").value,
     anthropic_api_key: el("key-claude").value.trim(),
     gemini_api_key: el("key-gemini").value.trim(),
     groq_api_key: el("key-groq").value.trim(),
   };
-  if (ollamaModel) cfg.ollama_model = ollamaModel;
-
   try {
     await api("/api/ai/config", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cfg),
     });
-    await loadTree();          // refresh sidebar AI label
-    await loadAIStatus();      // refresh card statuses
+    await loadTree();
+    await loadAIStatus();
   } catch (e) { alert("Error saving: " + e.message); }
 }
 
-// Ollama install (download + silent installer + model pull) via SSE
-function startOllamaInstall() {
-  const progress = el("ollama-progress");
-  const fill = el("ollama-pfill");
-  const msg = el("ollama-pmsg");
-  if (!progress) return;
-  progress.classList.remove("hidden");
-
-  const es = new EventSource("/api/setup/ollama/install");
-  es.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.stage === "download") {
-      fill.style.width = (data.pct || 0) + "%";
-      msg.textContent = data.msg || `Downloading… ${data.pct || 0}%`;
-    } else if (data.stage === "install") {
-      fill.style.width = "70%";
-      msg.textContent = data.msg || "Installing…";
-      if (data.done) {
-        es.close();
-        // Ollama is running — now pull the model
-        startModelPull();
-      }
-    } else if (data.stage === "error") {
-      es.close();
-      fill.style.background = "var(--red)";
-      msg.textContent = "Error: " + data.msg;
-    }
-  };
-  es.onerror = () => { es.close(); if (msg) msg.textContent = "Connection lost — check console."; };
-}
-
-function startModelPull() {
-  const progress = el("ollama-progress");
-  const fill = el("ollama-pfill");
-  const msg = el("ollama-pmsg");
-  if (!progress) return;
-  progress.classList.remove("hidden");
-
-  const modelInp = el("ollama-model-inp");
-  const model = modelInp ? modelInp.value.trim() || "llama3.2:3b" : "llama3.2:3b";
-  fill.style.width = "0%";
-  fill.style.background = "";
-  msg.textContent = `Downloading ${model}…`;
-
-  const es = new EventSource(`/api/setup/ollama/pull?model=${encodeURIComponent(model)}`);
-  es.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.pct !== undefined) {
-      fill.style.width = data.pct + "%";
-      msg.textContent = data.msg || `${data.status} … ${data.pct}%`;
+async function startLocalAgent() {
+  const btn = el("btn-start-agent");
+  const msg = el("agent-msg");
+  if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+  if (msg) msg.textContent = "Launching freeaiagent…";
+  try {
+    const data = await api("/api/setup/agent/start", { method: "POST" });
+    if (data.ok) {
+      if (msg) msg.textContent = "✅ " + data.msg;
+      setTimeout(loadAIStatus, 800);
     } else {
-      msg.textContent = data.msg || data.status || "";
+      if (msg) msg.textContent = "🔴 " + data.msg;
+      if (btn) { btn.disabled = false; btn.textContent = "Start Agent"; }
     }
-    if (data.done) {
-      es.close();
-      fill.style.width = "100%";
-      msg.textContent = `✅ ${model} ready!`;
-      setTimeout(loadAIStatus, 1000);
-    }
-    if (data.stage === "error") {
-      es.close();
-      fill.style.background = "var(--red)";
-      msg.textContent = "Error: " + data.msg;
-    }
-  };
-  es.onerror = () => { es.close(); };
+  } catch (e) {
+    if (msg) msg.textContent = "Error: " + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = "Start Agent"; }
+  }
 }
 
 // ---------------------------------------------------------------------------

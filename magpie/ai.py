@@ -1,8 +1,9 @@
-"""ai.py – multi-provider AI enrichment (Claude, Gemini, Groq, Ollama).
+"""ai.py – multi-provider AI enrichment (Claude, Gemini, Groq, freeaiagent).
 
-Priority in auto mode: Claude → Gemini Flash → Groq → Ollama → off.
-All providers use the same prompt and return the same JSON shape.
-Zero pip dependencies: every call is a plain urllib.request.
+Priority in auto mode: Claude → Gemini Flash → Groq → freeaiagent → off.
+freeaiagent (pip install freeaiagent) is the local-AI backend; it runs at
+localhost:7731 and handles Ollama/Groq routing on its own.
+Zero pip dependencies in the hot path: every call is a plain urllib.request.
 """
 from __future__ import annotations
 
@@ -150,33 +151,24 @@ def _call_groq(cfg: dict, prompt: str) -> str | None:
     return data["choices"][0]["message"]["content"]
 
 
-def _call_ollama(cfg: dict, prompt: str) -> str | None:
-    url = cfg.get("ollama_url", "http://localhost:11434")
-    model = cfg.get("ollama_model", "llama3.2:3b")
-    body = json.dumps({
-        "model": model,
-        "stream": False,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-    }).encode()
-    req = urllib.request.Request(
-        f"{url}/api/chat",
-        data=body,
-        headers={"content-type": "application/json"},
-        method="POST",
+def _call_freeaiagent(cfg: dict, prompt: str) -> str | None:
+    from . import freeaiagent_setup
+    url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
+    if not freeaiagent_setup.is_running(url):
+        return None
+    return freeaiagent_setup.call_task(
+        task="Analyze the captured note and return the JSON object now.",
+        input_text=prompt,
+        system=SYSTEM,
+        url=url,
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read())
-    return data["message"]["content"]
 
 
 _PROVIDERS: list[tuple[str, object]] = [
     ("claude", _call_claude),
     ("gemini", _call_gemini),
     ("groq", _call_groq),
-    ("ollama", _call_ollama),
+    ("freeaiagent", _call_freeaiagent),
 ]
 
 
@@ -188,10 +180,11 @@ def provider_status(cfg: dict | None = None) -> dict:
     if cfg is None:
         cfg = hub.load_config()
 
-    from . import ollama_setup
-    ollama_url = cfg.get("ollama_url", "http://localhost:11434")
-    ollama_running = ollama_setup.is_running(ollama_url)
-    ollama_models = ollama_setup.list_local_models(ollama_url) if ollama_running else []
+    from . import freeaiagent_setup
+    fa_url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
+    fa_health = freeaiagent_setup.get_health(fa_url)
+    fa_running = fa_health.get("status") not in ("offline", None) and "active_backend" in fa_health
+    fa_models = freeaiagent_setup.list_models(fa_url) if fa_running else []
 
     return {
         "claude": {
@@ -206,15 +199,21 @@ def provider_status(cfg: dict | None = None) -> dict:
             "available": bool(cfg.get("groq_api_key")),
             "label": "Key set" if cfg.get("groq_api_key") else "No key",
         },
-        "ollama": {
-            "available": ollama_running and bool(ollama_models),
-            "running": ollama_running,
-            "installed": ollama_setup.is_installed(),
-            "models": ollama_models,
+        "freeaiagent": {
+            "available": fa_running,
+            "running": fa_running,
+            "installed": freeaiagent_setup.is_installed(),
+            "backend": fa_health.get("active_backend", ""),
+            "model": fa_health.get("default_model", ""),
+            "models": fa_models,
             "label": (
-                f"Running · {cfg.get('ollama_model','llama3.2:3b')}"
-                if ollama_running and ollama_models
-                else ("Running — no model yet" if ollama_running else "Not detected")
+                f"Running · {fa_health.get('active_backend','?')} · {fa_health.get('default_model','?')}"
+                if fa_running
+                else (
+                    "Installed — run `freeaiagent start`"
+                    if freeaiagent_setup.is_installed()
+                    else "Not installed — pip install freeaiagent"
+                )
             ),
         },
     }

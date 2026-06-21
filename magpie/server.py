@@ -17,8 +17,8 @@ from urllib.parse import urlparse, parse_qs
 from . import ai
 from . import capture
 from . import hub
+from . import freeaiagent_setup
 from . import notify
-from . import ollama_setup
 
 PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(PKG_DIR, "web")
@@ -36,7 +36,7 @@ _AI_CONFIG_KEYS = {
     "anthropic_api_key", "ai_model",
     "gemini_api_key", "gemini_model",
     "groq_api_key", "groq_model",
-    "ollama_url", "ollama_model",
+    "freeaiagent_url",
 }
 
 
@@ -155,24 +155,9 @@ class Handler(BaseHTTPRequestHandler):
                         "claude": cfg.get("anthropic_api_key", ""),
                         "gemini": cfg.get("gemini_api_key", ""),
                         "groq": cfg.get("groq_api_key", ""),
-                        "ollama_model": cfg.get("ollama_model", "llama3.2:3b"),
-                        "ollama_url": cfg.get("ollama_url", "http://localhost:11434"),
+                        "freeaiagent_url": cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL),
                     },
                 })
-
-            # SSE: Ollama install (download + silent install) ---------------
-            if path == "/api/setup/ollama/install":
-                def _gen():
-                    yield from ollama_setup.download_installer_stream()
-                    yield from ollama_setup.run_installer_stream()
-                return self._stream_events(_gen())
-
-            # SSE: Ollama model pull ----------------------------------------
-            if path == "/api/setup/ollama/pull":
-                model = q.get("model", "llama3.2:3b")
-                cfg = hub.load_config()
-                url = cfg.get("ollama_url", "http://localhost:11434")
-                return self._stream_events(ollama_setup.pull_model_stream(model, url))
 
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)
@@ -242,6 +227,12 @@ class Handler(BaseHTTPRequestHandler):
                         del updates[key_field]
                 hub.update_config(updates)
                 return self._send_json({"ok": True})
+
+            if path == "/api/setup/agent/start":
+                cfg = hub.load_config()
+                url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
+                result = freeaiagent_setup.start_agent(url)
+                return self._send_json(result)
 
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)

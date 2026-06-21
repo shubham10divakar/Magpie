@@ -48,22 +48,20 @@ runtime). Ships as a single `Magpie.exe` or via `pipx install magpie-hub`.
 - `ai_provider: auto` (default) or pin to a specific provider
 - Active provider name shown in sidebar ("✨ AI: Gemini Flash")
 
-### Ollama in-app setup (`ollama_setup.py`)
-- Detects if Ollama is running at `localhost:11434`
-- **Install flow** (Windows, from inside the app):
-  1. Downloads `OllamaSetup.exe` from GitHub releases with progress bar
-  2. Runs it silently (`/S` flag) — one UAC prompt, then done
-  3. Polls until Ollama service is up
-  4. Pulls `llama3.2:3b` (~2 GB) via Ollama API with streaming progress
-- All steps stream to the UI via SSE (`EventSource`) — live progress bars
-- After setup: Ollama auto-starts on every Windows boot, zero user involvement
+### Local AI Agent (`freeaiagent_setup.py`) — replaces ollama_setup.py
+- Thin adapter to **freeaiagent** (`pip install freeaiagent`) at `localhost:7731`
+- `is_running()` / `is_installed()` / `get_health()` / `list_models()` — all stdlib urllib
+- `start_agent()` — spawns `freeaiagent start` as a background subprocess, polls up to 15s
+- `call_task()` — POSTs to `/task` with `{task, input, system}`, returns result string
+- freeaiagent owns Ollama/Groq routing; Magpie doesn't touch Ollama directly at all
 
 ### ⚙ AI Settings modal
-- Four provider cards: Claude / Gemini Flash / Groq / Ollama
-- Live status per card (✅ Key set / 🔴 No key / ✅ Running / 🔴 Not detected)
+- Four provider cards: Claude / Gemini Flash / Groq / Local AI Agent
+- Live status per card (✅ Key set / 🔴 No key / ✅ Running · ollama · llama3.2:3b / 🔴 …)
 - Key inputs (password) pre-filled from config; blank submission keeps existing key
-- Ollama card: Install button → progress bar, or model selector if already running
-- Provider dropdown: Auto / Claude / Gemini / Groq / Ollama
+- Local AI card: **Start Agent** button (POST `/api/setup/agent/start`) if installed but not running;
+  install instructions if not installed; model list if running
+- Provider dropdown: Auto / Claude / Gemini / Groq / Local AI Agent
 - Saves to `~/Magpie/config.json`
 
 ---
@@ -72,18 +70,11 @@ runtime). Ships as a single `Magpie.exe` or via `pipx install magpie-hub`.
 
 ### High priority
 
-#### 1. Pip agent integration (YOUR project — see below)
-You are building a separate pip package / agent that manages local LLM models
-(Ollama and similar). Once that ships, replace `ollama_setup.py` with a thin
-adapter that calls your agent instead of driving the Ollama installer directly.
-This makes Magpie's local-AI story much cleaner and removes the fragile
-`subprocess + OllamaSetup.exe` approach.
-
-**Integration point:** `ai.py → _call_ollama()` and `ollama_setup.py` are the
-two files to touch. The agent should expose a simple interface:
-- `agent.is_running()` → bool
-- `agent.pull(model)` → progress generator
-- `agent.chat(model, messages)` → str
+#### ✅ 1. freeaiagent integration — DONE
+`ollama_setup.py` replaced by `freeaiagent_setup.py`. Magpie now calls
+`localhost:7731/task` via stdlib urllib. freeaiagent (published on PyPI as
+`freeaiagent`) owns Ollama/Groq routing, model management, and context.
+Settings card shows live backend + model from `/health`.
 
 #### 2. llamafile support (sidecar, zero install)
 Alternative to Ollama for users who can't/won't install system software.
@@ -144,48 +135,29 @@ Linux: `curl -fsSL https://ollama.com/install.sh | sh` via subprocess.
 
 ---
 
-## Your pip agent (future integration)
+## freeaiagent — integrated ✅
 
-**What you're building:** a pip-installable agent/tool that manages local LLM
-models (Ollama and similar runtimes) — install, pull, run, query.
+**Package:** `pip install freeaiagent` (published on PyPI by you, 2026-06-21)
 
-**How it fits into Magpie:**
+**What it does:** persistent HTTP server at `localhost:7731` with Ollama and
+Groq backends, SQLite conversation history, CLI (`freeaiagent start/chat/task`).
 
-Right now Magpie has hand-rolled Ollama management (`ollama_setup.py`).
-When your agent ships, the plan is:
+**How Magpie uses it:**
 
-```
-pip install <your-agent>   # user installs once
-```
+| Magpie call | freeaiagent endpoint |
+|-------------|----------------------|
+| AI enrichment | `POST /task` — `{task, input, system}` |
+| Status check | `GET /health` — `{status, active_backend, default_model}` |
+| List models | `GET /models` |
+| Start from UI | `freeaiagent start` via subprocess.Popen |
 
-Then in `magpie/ai.py`:
-```python
-# Replace _call_ollama() with:
-import your_agent
-def _call_ollama(cfg, prompt):
-    return your_agent.chat(
-        model=cfg.get("ollama_model", "llama3.2:3b"),
-        messages=[{"role": "system", "content": SYSTEM},
-                  {"role": "user",   "content": prompt}]
-    )
-```
+Key files:
+- `magpie/freeaiagent_setup.py` — all calls to localhost:7731 (stdlib urllib only)
+- `magpie/ai.py` → `_call_freeaiagent()` — uses `call_task()` from setup module
+- `magpie/server.py` → `POST /api/setup/agent/start` → `start_agent()`
 
-And in `ollama_setup.py` → delegate to `your_agent.pull()` / `your_agent.is_running()`.
-
-The Settings modal Ollama card would show your agent's status rather than
-probing `localhost:11434` directly.
-
-**What your agent should expose (minimal interface Magpie needs):**
-```python
-your_agent.is_running() -> bool
-your_agent.list_models() -> list[str]
-your_agent.pull(model: str) -> Generator[dict, None, None]  # progress events
-your_agent.chat(model: str, messages: list[dict], **kwargs) -> str
-```
-
-This keeps Magpie's core stdlib-only (your agent is an optional dep, only needed
-for local AI), and means Magpie automatically benefits from any runtime your
-agent supports beyond Ollama (llama.cpp, llamafile, etc.).
+Magpie remains pip-dependency-free. freeaiagent is optional — without it,
+the other three providers (Claude, Gemini, Groq) still work.
 
 ---
 

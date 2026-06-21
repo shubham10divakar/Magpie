@@ -12,8 +12,7 @@
   "gemini_model": "gemini-1.5-flash",
   "groq_api_key": "",
   "groq_model": "llama-3.1-8b-instant",
-  "ollama_url": "http://localhost:11434",
-  "ollama_model": "llama3.2:3b",
+  "freeaiagent_url": "http://localhost:7731",
   "seed_categories": {
     "AI-ML": ["LLM agents", "RAG", "Training", "Datasets"],
     "Computer Vision": ["Inspection", "Tracking", "Segmentation"],

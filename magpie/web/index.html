@@ -193,15 +193,15 @@
           <a class="ai-get-key" href="https://console.groq.com/keys" target="_blank">Get free key →</a>
         </div>
 
-        <!-- Ollama -->
-        <div class="ai-card" id="card-ollama">
-          <div class="ai-card-head" onclick="selectAIProvider('ollama')">
-            <span class="ai-icon">🦙</span>
-            <span class="ai-name">Ollama</span>
+        <!-- Local AI Agent -->
+        <div class="ai-card" id="card-freeaiagent">
+          <div class="ai-card-head" onclick="selectAIProvider('freeaiagent')">
+            <span class="ai-icon">🤖</span>
+            <span class="ai-name">Local AI Agent</span>
             <span class="ai-badge ai-badge-local">Local · No key</span>
           </div>
-          <div class="ai-card-status" id="status-ollama">—</div>
-          <div id="ollama-controls" class="ollama-controls"></div>
+          <div class="ai-card-status" id="status-freeaiagent">—</div>
+          <div id="local-ai-controls" class="ollama-controls"></div>
         </div>
 
       </div><!-- /.ai-provider-grid -->
@@ -213,7 +213,7 @@
             <option value="claude">Claude</option>
             <option value="gemini">Gemini Flash</option>
             <option value="groq">Groq</option>
-            <option value="ollama">Ollama (local)</option>
+            <option value="freeaiagent">Local AI Agent</option>
           </select>
         </label>
       </div>
