@@ -1,9 +1,14 @@
-"""freeaiagent_setup.py – thin interface to the user's local freeaiagent service.
+"""freeaiagent_setup.py – Magpie's interface to the local freeaiagent service.
 
 freeaiagent (https://pypi.org/project/freeaiagent/) is a separate pip package
-that runs a persistent HTTP server on localhost:7731. It owns Ollama/Groq
-backend management, model selection, and conversation context so Magpie
-doesn't have to.
+that runs a persistent HTTP server (default localhost:7731). It owns the local
+LLM (llamafile/GGUF), Ollama/Groq routing, the model catalog, downloads, and
+conversation context, so Magpie doesn't have to.
+
+As of freeaiagent 1.2.0 this module talks to it through the bundled
+``freeaiagent.Client`` SDK (catalog/pull-with-progress/config). The import is
+guarded: if freeaiagent isn't importable, every function degrades gracefully so
+the cloud providers (Claude/Gemini/Groq) keep working.
 
 Install:  pip install freeaiagent
 Start:    freeaiagent start
@@ -11,95 +16,161 @@ Docs:     http://localhost:7731/docs  (when running)
 """
 from __future__ import annotations
 
-import json
-import shutil
-import subprocess
-import time
-import urllib.request
+from urllib.parse import urlparse
 
 DEFAULT_URL = "http://localhost:7731"
 
+# Guarded import — freeaiagent is a declared dependency, but its absence must
+# not crash app startup (server.py imports this module at top level).
+try:
+    from freeaiagent import Client
+    _IMPORT_ERROR: Exception | None = None
+except Exception as exc:  # pragma: no cover - exercised only without the dep
+    Client = None  # type: ignore[assignment]
+    _IMPORT_ERROR = exc
 
-def is_running(url: str = DEFAULT_URL) -> bool:
-    try:
-        urllib.request.urlopen(f"{url}/health", timeout=2)
-        return True
-    except Exception:
-        return False
+_clients: dict[str, object] = {}
+
+
+def _client(url: str = DEFAULT_URL):
+    """Return a cached Client pinned to ``url``'s port, or None if unavailable."""
+    if Client is None:
+        return None
+    c = _clients.get(url)
+    if c is None:
+        port = urlparse(url).port or 7731
+        c = Client(name="magpie", port=port)
+        _clients[url] = c
+    return c
 
 
 def is_installed() -> bool:
-    return shutil.which("freeaiagent") is not None
+    """True if the freeaiagent package is importable in this environment."""
+    return Client is not None
+
+
+def is_running(url: str = DEFAULT_URL) -> bool:
+    c = _client(url)
+    return bool(c and c.is_running())
 
 
 def get_health(url: str = DEFAULT_URL) -> dict:
     """Return /health payload, or {"status": "offline"} on failure."""
+    c = _client(url)
+    if not c:
+        return {"status": "offline"}
     try:
-        with urllib.request.urlopen(f"{url}/health", timeout=3) as resp:
-            return json.loads(resp.read())
+        return c.health()
     except Exception:
         return {"status": "offline"}
 
 
 def list_models(url: str = DEFAULT_URL) -> list[str]:
+    """Models available on the active backend right now."""
+    c = _client(url)
+    if not c:
+        return []
     try:
-        with urllib.request.urlopen(f"{url}/models", timeout=3) as resp:
-            return json.loads(resp.read()).get("models", [])
+        return c.models.list()
     except Exception:
         return []
 
 
+def get_catalog(url: str = DEFAULT_URL) -> list[dict]:
+    """Curated downloadable catalog; each entry flagged ``installed``.
+
+    Entry keys: name, display, kind, size_gb, min_ram_gb, tier, description,
+    installed.
+    """
+    c = _client(url)
+    if not c:
+        return []
+    try:
+        return c.models.catalog()
+    except Exception:
+        return []
+
+
+def get_installed(url: str = DEFAULT_URL) -> list[dict]:
+    """Local model files on disk (name, size_mb, kind, path)."""
+    c = _client(url)
+    if not c:
+        return []
+    try:
+        return c.models.installed()
+    except Exception:
+        return []
+
+
+def set_default_model(model: str, url: str = DEFAULT_URL) -> dict:
+    """Set the agent's default model. Returns {ok, msg}."""
+    c = _client(url)
+    if not c:
+        return {"ok": False, "msg": "freeaiagent not installed. Run:  pip install freeaiagent"}
+    try:
+        c.config.set("default_model", model)
+        return {"ok": True, "msg": f"Default model set to {model}"}
+    except Exception as exc:
+        return {"ok": False, "msg": f"Could not set model: {exc}"}
+
+
+def pull_model(model: str, url: str = DEFAULT_URL):
+    """Yield progress dicts while downloading ``model`` server-side.
+
+    Each dict mirrors a freeaiagent PullProgress event:
+    {type, phase, label, pct, downloaded_mb, total_mb, speed_mbps, path, error}
+    where type is one of start | progress | done | error. Raises if the SDK is
+    unavailable.
+    """
+    c = _client(url)
+    if not c:
+        raise RuntimeError("freeaiagent not installed. Run:  pip install freeaiagent")
+    for p in c.pull(model):
+        yield {
+            "type": p.type,
+            "phase": p.phase,
+            "label": p.label,
+            "pct": p.pct,
+            "downloaded_mb": p.downloaded_mb,
+            "total_mb": p.total_mb,
+            "speed_mbps": p.speed_mbps,
+            "path": p.path,
+            "error": p.error,
+        }
+
+
 def start_agent(url: str = DEFAULT_URL) -> dict:
-    """Launch `freeaiagent start` in the background. Returns {ok, msg}."""
-    if is_running(url):
+    """Launch the freeaiagent server in the background. Returns {ok, msg}."""
+    c = _client(url)
+    if c and c.is_running():
         h = get_health(url)
         return {
             "ok": True,
             "msg": f"Already running · {h.get('active_backend','?')} · {h.get('default_model','?')}",
         }
-    if not is_installed():
+    if not c:
         return {
             "ok": False,
             "msg": "freeaiagent not installed. Run:  pip install freeaiagent",
         }
     try:
-        subprocess.Popen(
-            ["freeaiagent", "start"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        c.start(wait=20.0)
     except Exception as exc:
-        return {"ok": False, "msg": f"Could not launch agent: {exc}"}
-
-    for _ in range(15):
-        time.sleep(1)
-        if is_running(url):
-            h = get_health(url)
-            return {
-                "ok": True,
-                "msg": f"Agent started · {h.get('active_backend','?')} · {h.get('default_model','?')}",
-            }
+        return {
+            "ok": False,
+            "msg": f"Agent did not start: {exc} — try `freeaiagent start` in a terminal.",
+        }
+    h = get_health(url)
     return {
-        "ok": False,
-        "msg": "Agent launched but did not respond — try `freeaiagent start` in a terminal.",
+        "ok": True,
+        "msg": f"Agent started · {h.get('active_backend','?')} · {h.get('default_model','?')}",
     }
 
 
 def call_task(task: str, input_text: str = "", system: str = "",
               url: str = DEFAULT_URL, timeout: int = 120) -> str:
-    """POST /task and return the result string. Raises on failure."""
-    payload: dict = {"task": task}
-    if input_text:
-        payload["input"] = input_text
-    if system:
-        payload["system"] = system
-    body = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        f"{url}/task",
-        data=body,
-        headers={"content-type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
-    return data["result"]
+    """Run a one-shot /task and return the result string. Raises on failure."""
+    c = _client(url)
+    if not c:
+        raise RuntimeError("freeaiagent not installed. Run:  pip install freeaiagent")
+    return c.task(task, input=input_text or None, system=system or None)
