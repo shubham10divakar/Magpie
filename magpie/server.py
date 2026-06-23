@@ -144,6 +144,11 @@ class Handler(BaseHTTPRequestHandler):
                 days = q.get("days")
                 return self._send_json({"items": hub.due_soon(int(days) if days else None)})
 
+            if path == "/api/setup/agent/catalog":
+                cfg = hub.load_config()
+                url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
+                return self._send_json({"models": freeaiagent_setup.get_catalog(url)})
+
             if path == "/api/ai/status":
                 cfg = hub.load_config()
                 status = ai.provider_status(cfg)
@@ -233,6 +238,18 @@ class Handler(BaseHTTPRequestHandler):
                 url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
                 result = freeaiagent_setup.start_agent(url)
                 return self._send_json(result)
+
+            if path == "/api/setup/agent/config":
+                cfg = hub.load_config()
+                url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
+                result = freeaiagent_setup.set_default_model(body.get("model", ""), url)
+                return self._send_json(result)
+
+            if path == "/api/setup/agent/pull":
+                cfg = hub.load_config()
+                url = cfg.get("freeaiagent_url", freeaiagent_setup.DEFAULT_URL)
+                model = body.get("model", "")
+                return self._stream_events(freeaiagent_setup.pull_model(model, url))
 
         except Exception as exc:
             return self._send_json({"error": str(exc)}, 400)
