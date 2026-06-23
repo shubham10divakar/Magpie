@@ -84,10 +84,12 @@ fully offline). Magpie does **not** need its own `llamafile_setup.py` — it
 just surfaces freeaiagent's local backend through the new catalog/pull UI
 described in #3 below.
 
-#### 🔲 3. Model catalog + download + progress, in the UI  ← NEXT UP
-**Now unblocked by freeaiagent 1.2.0.** Previously the Local AI card could only
-*list* installed model names — it could not browse a catalog, start a download,
-or show progress. freeaiagent 1.2.0 now exposes the endpoints to do all three:
+#### ✅ 3. Model catalog + download + progress, in the UI — DONE
+**Shipped on `feat/model-catalog-ui`.** The Local AI card now browses the
+freeaiagent catalog, sets the default model, and downloads with a live progress
+bar — no terminal. Verified end-to-end against a running agent (catalog → set
+default → SSE pull). Built via the `freeaiagent.Client` SDK; the endpoints that
+unblocked it:
 
 | freeaiagent endpoint | Gives us |
 |----------------------|----------|
@@ -215,13 +217,13 @@ a model catalog, server-side streaming downloads, and a Python `Client` SDK.
 
 | Magpie call | SDK / endpoint | Status |
 |-------------|----------------|--------|
-| AI enrichment | `client.task(...)` → `POST /task` | ✅ wired (migrate to SDK in #3) |
-| Status check | `client.is_running()` / `GET /health` | ✅ wired |
-| List models | `client.models.list()` / `GET /models` | ✅ wired |
-| Start from UI | `freeaiagent start` via subprocess (or `auto_start=True`) | ✅ wired |
-| Model catalog | `client.models.catalog()` / `client.models.installed()` | 🔲 planned (#3) |
-| Download model | `client.pull(model)` (progress iterator) | 🔲 planned (#3) |
-| Set default model | `client.config.set("default_model", …)` | 🔲 planned (#3) |
+| AI enrichment | `client.task(...)` → `POST /task` | ✅ wired (SDK) |
+| Status check | `client.is_running()` / `client.health()` | ✅ wired (SDK) |
+| List models | `client.models.list()` | ✅ wired (SDK) |
+| Start from UI | `client.start()` (spawns `freeaiagent start`) | ✅ wired (SDK) |
+| Model catalog | `client.models.catalog()` / `client.models.installed()` | ✅ wired (#3) |
+| Download model | `client.pull(model)` (progress generator → SSE) | ✅ wired (#3) |
+| Set default model | `client.config.set("default_model", …)` | ✅ wired (#3) |
 
 Key files:
 - `magpie/freeaiagent_setup.py` — lazily constructs `Client(name="magpie")`; all freeaiagent access goes through here
