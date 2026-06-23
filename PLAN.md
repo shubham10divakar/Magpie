@@ -4,8 +4,9 @@
 
 A local, Markdown-first idea & project hub. Collect, organize, and enrich
 notes/links/ideas across any domain. No database — plain `.md` files with YAML
-frontmatter, fully Obsidian-compatible. Python stdlib only (no pip deps at
-runtime). Ships as a single `Magpie.exe` or via `pipx install magpie-hub`.
+frontmatter, fully Obsidian-compatible. Core app is stdlib-only; the local-AI
+feature depends on `freeaiagent`. Ships via `pipx install magpie-hub`
+(the single-`Magpie.exe` target was dropped — see #3 / Tech constraints).
 
 ---
 
@@ -21,7 +22,7 @@ runtime). Ships as a single `Magpie.exe` or via `pipx install magpie-hub`.
 - Category management: create from UI (+), free-text input in editor, filesystem scan
 - Safe note move: write → verify → delete source (never loses data)
 - Due-soon panel + Windows toast notifications (background scanner thread)
-- Installable as `pipx install magpie-hub` or standalone `Magpie.exe`
+- Installable as `pipx install magpie-hub`
 - Per-user data dir `~/Magpie/` — upgrades never touch notes
 
 ### URL capture (`capture.py`)
@@ -76,18 +77,82 @@ runtime). Ships as a single `Magpie.exe` or via `pipx install magpie-hub`.
 `freeaiagent`) owns Ollama/Groq routing, model management, and context.
 Settings card shows live backend + model from `/health`.
 
-#### 2. llamafile support (sidecar, zero install)
-Alternative to Ollama for users who can't/won't install system software.
-User drops a `.llamafile` into `~/Magpie/llamafile/`. Magpie spawns it as a
-subprocess on demand, talks to it on a local port, kills it on shutdown.
-No UAC, no service, no PATH — just one file.
+#### ~~2. llamafile support (sidecar, zero install)~~ — SUBSUMED by freeaiagent 1.2.0
+**No longer a Magpie-side task.** freeaiagent 1.2.0 ships a built-in
+zero-install local backend (llamafile + GGUF, 1B–14B, no Ollama, no key,
+fully offline). Magpie does **not** need its own `llamafile_setup.py` — it
+just surfaces freeaiagent's local backend through the new catalog/pull UI
+described in #3 below.
 
-Effort: ~100 lines in a new `llamafile_setup.py` + one new provider in `ai.py`.
+#### 🔲 3. Model catalog + download + progress, in the UI  ← NEXT UP
+**Now unblocked by freeaiagent 1.2.0.** Previously the Local AI card could only
+*list* installed model names — it could not browse a catalog, start a download,
+or show progress. freeaiagent 1.2.0 now exposes the endpoints to do all three:
 
-#### 3. Model pull from within the app (model selector)
-Currently the Ollama card only pulls `llama3.2:3b`. Should show a dropdown of
-recommended models (phi4-mini, mistral:7b, llama3.2:1b) with size + quality
-labels so users can choose before downloading.
+| freeaiagent endpoint | Gives us |
+|----------------------|----------|
+| `GET /models/catalog` | curated models with `installed` flag, size, RAM, tier |
+| `GET /models/installed` | what's actually on disk |
+| `POST /pull/stream` | SSE download with live progress (`phase`, `pct`, `downloaded_mb`, `total_mb`, `speed_mbps`) |
+| `POST /config/set` | set `default_model` (dotted-key config) |
+
+**Decision:** use the **`freeaiagent.Client` SDK** (not raw urllib). This makes
+`freeaiagent` a declared dependency of `magpie-hub` and **drops the single
+`Magpie.exe` target** — distribution is now pipx-only, since a frozen exe can't
+import a package living in the user's separate environment. The SDK buys us
+`client.pull()` progress iteration, `client.models.catalog()`, port
+auto-discovery (`~/.freeaiagent/server.json`), and typed errors
+(`ServerNotRunning`, `DownloadInProgress`).
+
+##### Implementation plan
+
+**A. `magpie/freeaiagent_setup.py`** — replace urllib internals with a lazily
+constructed `Client(name="magpie", auto_start=False)`. Keep the existing public
+function names so callers don't churn; add four helpers:
+- `get_catalog()` → `client.models.catalog()` (each entry flagged `installed`).
+  `[]` on failure.
+- `get_installed()` → `client.models.installed()`. `[]` on failure.
+- `set_default_model(model)` → `client.config.set("default_model", model)`.
+  Returns `{ok, msg}`.
+- `pull_model(model)` → **generator** wrapping `client.pull(model)`, yielding
+  each progress object (`p.type`, `p.phase`, `p.pct`, `p.downloaded_mb`,
+  `p.total_mb`) as a plain dict for the server's SSE passthrough.
+
+Import `freeaiagent` lazily (inside functions / behind a module-level
+try-import) so that if it's somehow absent, the cloud providers still load and
+the Local AI card degrades to an "install freeaiagent" message rather than
+crashing app startup.
+
+**B. `magpie/server.py`** — three new routes:
+- `GET /api/setup/agent/catalog` → merges `get_catalog()` + `get_installed()`,
+  returns `{models: [...]}` for the dropdown.
+- `POST /api/setup/agent/config` → body `{model}` → `set_default_model()`.
+- `POST /api/setup/agent/pull` → **SSE passthrough**. Iterate
+  `freeaiagent_setup.pull_model()` and re-emit each event as
+  `data: {…}\n\n` on Magpie's own response, so the browser gets one clean
+  progress stream. Reuse the existing ThreadingHTTPServer + SSE plumbing.
+
+**C. `magpie/web/index.html` + `app.js`** — extend the Local AI card
+(`#local-ai-controls`, currently `app.js:475-507`):
+- When the agent is running, render a **model `<select>`** populated from
+  `/api/setup/agent/catalog`. Installed models show a ✓; others show size +
+  tier (e.g. `qwen2.5-7b · 4.7 GB · high`).
+- **Set as default** button → `POST /api/setup/agent/config`.
+- **Download** button for not-yet-installed models → opens an `EventSource`
+  /reads the SSE stream from `/api/setup/agent/pull`, drives a `<progress>`
+  bar + MB/speed text (reuse the existing `.progress-msg` styling), and
+  refreshes the card + `loadAIStatus()` on `[DONE]`.
+
+**D. Acceptance:** from the AI Settings modal a user can, with no terminal:
+pick a model from the catalog, click Download, watch a real progress bar to
+completion, set it as default, and have enrichment use it.
+
+**E. Packaging:** add `freeaiagent>=1.2.0` to `pyproject.toml`; remove any
+PyInstaller `.exe` build target/spec and update README install docs to
+pipx-only.
+
+Effort: ~80 lines in `freeaiagent_setup.py`, ~40 in `server.py`, ~70 in the UI,
+plus the packaging cleanup.
 
 #### 4. Bulk note operations
 - Multi-select cards (shift-click / checkbox)
@@ -135,29 +200,38 @@ Linux: `curl -fsSL https://ollama.com/install.sh | sh` via subprocess.
 
 ---
 
-## freeaiagent — integrated ✅
+## freeaiagent — integrated ✅ (tracking 1.2.0)
 
-**Package:** `pip install freeaiagent` (published on PyPI by you, 2026-06-21)
+**Package:** `pip install freeaiagent` (published on PyPI by you; 1.2.0 released
+2026-06-23)
 
-**What it does:** persistent HTTP server at `localhost:7731` with Ollama and
-Groq backends, SQLite conversation history, CLI (`freeaiagent start/chat/task`).
+**What it does:** persistent HTTP server at `localhost:7731`. As of 1.2.0:
+built-in **zero-install local backend** (llamafile + GGUF, 1B–14B, no Ollama,
+no key, offline), plus Ollama, Groq, and OpenAI-compatible cloud presets
+(Gemini, OpenRouter, Together, Cerebras). SQLite history, streaming, tool use,
+a model catalog, server-side streaming downloads, and a Python `Client` SDK.
 
-**How Magpie uses it:**
+**How Magpie uses it (via the `freeaiagent.Client` SDK — a declared dependency):**
 
-| Magpie call | freeaiagent endpoint |
-|-------------|----------------------|
-| AI enrichment | `POST /task` — `{task, input, system}` |
-| Status check | `GET /health` — `{status, active_backend, default_model}` |
-| List models | `GET /models` |
-| Start from UI | `freeaiagent start` via subprocess.Popen |
+| Magpie call | SDK / endpoint | Status |
+|-------------|----------------|--------|
+| AI enrichment | `client.task(...)` → `POST /task` | ✅ wired (migrate to SDK in #3) |
+| Status check | `client.is_running()` / `GET /health` | ✅ wired |
+| List models | `client.models.list()` / `GET /models` | ✅ wired |
+| Start from UI | `freeaiagent start` via subprocess (or `auto_start=True`) | ✅ wired |
+| Model catalog | `client.models.catalog()` / `client.models.installed()` | 🔲 planned (#3) |
+| Download model | `client.pull(model)` (progress iterator) | 🔲 planned (#3) |
+| Set default model | `client.config.set("default_model", …)` | 🔲 planned (#3) |
 
 Key files:
-- `magpie/freeaiagent_setup.py` — all calls to localhost:7731 (stdlib urllib only)
+- `magpie/freeaiagent_setup.py` — lazily constructs `Client(name="magpie")`; all freeaiagent access goes through here
 - `magpie/ai.py` → `_call_freeaiagent()` — uses `call_task()` from setup module
 - `magpie/server.py` → `POST /api/setup/agent/start` → `start_agent()`
 
-Magpie remains pip-dependency-free. freeaiagent is optional — without it,
-the other three providers (Claude, Gemini, Groq) still work.
+freeaiagent is now a real dependency of the local-AI feature (declared in
+`pyproject.toml`). The other three providers (Claude, Gemini, Groq) still work
+without it — the import is lazy, so its absence degrades the Local AI card to an
+install prompt rather than breaking the app.
 
 ---
 
@@ -165,9 +239,11 @@ the other three providers (Claude, Gemini, Groq) still work.
 
 | Constraint | Reason |
 |------------|--------|
-| Python stdlib only at runtime | Works on Python 3.14 with no pip install |
+| Core app is stdlib-only | Vault, capture, server need no pip deps |
+| `freeaiagent` is the one allowed dependency | Local-AI feature uses the `Client` SDK (catalog/pull/progress) |
+| pipx-only distribution (no `Magpie.exe`) | SDK import requires Magpie + freeaiagent in the same env; a frozen exe can't import the user's separate install |
 | Markdown + YAML frontmatter | Obsidian-compatible, future-proof |
 | No database | Plain files = easy backup, git, external editing |
 | `~/Magpie/` data dir | Upgrades never touch user data |
 | ThreadingHTTPServer | Each request (incl. SSE streams) gets its own thread |
-| SSE for long-running ops | Ollama install/pull streams progress without polling |
+| SSE for long-running ops | Model pull streams progress to the UI without polling |
