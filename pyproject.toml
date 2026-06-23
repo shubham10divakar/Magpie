@@ -7,7 +7,7 @@ name = "magpie-hub"
 version = "0.1.0"
 description = "Magpie — a local, Markdown-first hub for collecting and organizing ideas, projects, notes, and links."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["notes", "markdown", "ideas", "projects", "obsidian", "knowledge-base"]
 authors = [{ name = "Shubham Divakar" }]
@@ -18,8 +18,12 @@ classifiers = [
     "Environment :: Web Environment",
     "Topic :: Office/Business",
 ]
-# No runtime dependencies — Python standard library only.
-dependencies = []
+# Core app is stdlib-only; the local-AI feature uses the freeaiagent SDK
+# (catalog / model download with progress / config). Distribution is pipx-only:
+# a frozen .exe can't import freeaiagent from the user's separate environment.
+dependencies = [
+    "freeaiagent>=1.2.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/shubham10divakar/Magpie"

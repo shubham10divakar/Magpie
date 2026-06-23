@@ -7,7 +7,8 @@ across AI/ML, Computer Vision, IT, Pip tools, Finance, or whatever you add.
 
 - **Your data = plain Markdown files** in `vault/<Category>/<Subcategory>/note.md`
   with YAML frontmatter. Edit them here, in VS Code, or in **Obsidian**.
-- **No database, no installs.** Pure Python standard library + a single-page web UI.
+- **No database.** Plain files + a single-page web UI. The core app is
+  stdlib-only; the optional local-AI feature uses the `freeaiagent` package.
 - **Web capture** (articles + X/Twitter posts) and **optional AI auto-organizing**.
 - **Due-soon panel + Windows toast notifications** while the app is open.
 
@@ -19,12 +20,13 @@ Your browser opens at `http://127.0.0.1:8765`.
 **As a pip tool (for other people):**
 
 ```bash
-pipx install magpie-hub      # or: pip install magpie-hub
+pipx install magpie-hub      # or: pip install magpie-hub  (Python 3.10+)
 magpie                       # launches the hub
 ```
 
-**As a standalone app (no Python needed):** run `build_exe.ps1` to produce
-`dist/Magpie.exe` — a single file your friends can double-click.
+This pulls in `freeaiagent` (the local-AI backend). Magpie is distributed via
+pipx/pip only — there's no standalone `.exe`, because a frozen build can't
+import `freeaiagent` from the user's separate environment.
 
 Your notes are created in **`~/Magpie/`** (config + `vault/`) on first run, so
 upgrades and reinstalls never touch your data. Point `MAGPIE_HOME` at another
@@ -98,28 +100,20 @@ Priority in **Auto** mode: Claude → Gemini Flash → Groq → Local AI Agent.
 3. In Magpie → **⚙ AI** → paste key under Groq → **Save**
 
 ### 🤖 Local AI Agent — local, no key, works offline
-Uses [freeaiagent](https://pypi.org/project/freeaiagent/) — a pip package that
-runs a persistent local LLM server (Ollama or Groq backend). Completely free,
-data never leaves your machine.
+Uses [freeaiagent](https://pypi.org/project/freeaiagent/) (installed with Magpie)
+— a persistent local LLM server with a built-in zero-install backend
+(llamafile/GGUF, no Ollama, no key). Completely free, data never leaves your
+machine.
 
-```bash
-pip install freeaiagent   # one-time install
-freeaiagent start         # runs at localhost:7731
-```
+Everything is in the UI now — no terminal needed:
 
-Then in Magpie → **⚙ AI** → Local AI Agent card → **Start Agent** (if installed
-but not running), or Magpie detects it automatically if it's already up.
-
-To configure the backend or pull models:
-
-```bash
-freeaiagent config set default_backend ollama
-freeaiagent config set default_model llama3.2:3b
-freeaiagent models   # list available models
-```
+1. Magpie → **⚙ AI** → **Local AI Agent** card → **Start Agent**
+2. Pick a model from the catalog dropdown (size + quality tier shown)
+3. **Download** — watch the live progress bar
+4. **Set as default** — enrichment now runs on your local model
 
 See `freeaiagent --help` or [pypi.org/project/freeaiagent](https://pypi.org/project/freeaiagent/)
-for full docs.
+for advanced backend/model configuration.
 
 ## Notifications
 
@@ -152,12 +146,12 @@ The **code** (this repo / the installed package):
 | `magpie/hub.py` / `vault_io.py` | Note CRUD + frontmatter read/write. |
 | `magpie/capture.py` | URL + X/Twitter capture. |
 | `magpie/ai.py` | Multi-provider AI enrichment (Claude, Gemini, Groq, freeaiagent). |
-| `magpie/freeaiagent_setup.py` | Thin adapter to the freeaiagent local AI service at localhost:7731. |
+| `magpie/freeaiagent_setup.py` | Adapter to freeaiagent via its `Client` SDK (health, task, catalog, pull, config). |
 | `magpie/notify.py` | Due-date scan + Windows toast. |
 | `magpie/web/` | The single-page UI. |
 | `magpie/default_config.json` | Template copied to `~/Magpie/config.json` on first run. |
 | `automations/` | Example scripts (`capture_x_post.py`). |
-| `pyproject.toml` / `build_exe.ps1` | pip packaging / standalone `.exe` build. |
+| `pyproject.toml` | pip/pipx packaging (depends on `freeaiagent`). |
 
 ## Data safety
 
