@@ -157,6 +157,11 @@ select, input[type=date], input, textarea {
 .progress-bar { background: #e5e5e3; border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 4px; }
 .progress-fill { background: var(--accent); height: 100%; width: 0%; transition: width 0.4s; }
 .progress-msg { font-size: 11px; color: var(--muted); }
+.model-select { width: 100%; font-size: 12px; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--panel); color: var(--text); }
+.model-actions { display: flex; gap: 6px; }
+.model-actions button { flex: 1; padding: 5px 8px; font-size: 12px; }
+#pull-progress progress { width: 100%; height: 6px; }
 .settings-row { margin: 6px 0 10px; }
 
 /* Feed import modal */

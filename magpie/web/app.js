@@ -486,10 +486,18 @@ function renderLocalAIStatus(status) {
     : `<span class="ai-off">🔴 ${status.label}</span>`;
 
   if (status.available) {
-    const models = status.models || [];
-    ctrl.innerHTML = models.length
-      ? `<div style="font-size:11px;color:var(--muted)">Models: ${models.join(", ")}</div>`
-      : "";
+    ctrl.innerHTML = `
+      <select id="sel-local-model" class="model-select" onchange="onLocalModelChange()"></select>
+      <div class="model-actions">
+        <button id="btn-set-model" onclick="setDefaultModel(el('sel-local-model').value)">Set as default</button>
+        <button id="btn-pull-model" class="primary" onclick="downloadModel(el('sel-local-model').value)">Download</button>
+      </div>
+      <div id="pull-progress" hidden>
+        <progress id="pull-bar" max="100" value="0"></progress>
+        <span id="pull-text" class="progress-msg"></span>
+      </div>
+      <div id="local-ai-msg" class="progress-msg"></div>`;
+    loadModelCatalog(status.model);
   } else if (status.installed) {
     ctrl.innerHTML = `
       <div id="agent-msg" class="progress-msg"></div>
@@ -547,6 +555,102 @@ async function startLocalAgent() {
   } catch (e) {
     if (msg) msg.textContent = "Error: " + e.message;
     if (btn) { btn.disabled = false; btn.textContent = "Start Agent"; }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Local AI model catalog / download
+// ---------------------------------------------------------------------------
+let LOCAL_CATALOG = [];
+
+async function loadModelCatalog(currentModel) {
+  const sel = el("sel-local-model");
+  if (!sel) return;
+  try {
+    const data = await api("/api/setup/agent/catalog");
+    LOCAL_CATALOG = data.models || [];
+  } catch (e) {
+    LOCAL_CATALOG = [];
+  }
+  sel.innerHTML = LOCAL_CATALOG.map((m) =>
+    `<option value="${m.name}"${m.name === currentModel ? " selected" : ""}>` +
+    `${m.installed ? "✓ " : ""}${m.name} · ${m.size_gb} GB · ${m.tier}` +
+    `</option>`).join("");
+  onLocalModelChange();
+}
+
+function onLocalModelChange() {
+  const sel = el("sel-local-model");
+  const pullBtn = el("btn-pull-model");
+  const m = LOCAL_CATALOG.find((x) => x.name === (sel && sel.value));
+  if (!m || !pullBtn) return;
+  pullBtn.disabled = !!m.installed;
+  pullBtn.textContent = m.installed ? "Installed" : "Download";
+}
+
+async function setDefaultModel(model) {
+  const msg = el("local-ai-msg");
+  if (!model) return;
+  if (msg) msg.textContent = "Saving…";
+  try {
+    const data = await api("/api/setup/agent/config", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    });
+    if (msg) msg.textContent = (data.ok ? "✅ " : "🔴 ") + data.msg;
+    await loadAIStatus();
+  } catch (e) {
+    if (msg) msg.textContent = "Error: " + e.message;
+  }
+}
+
+async function downloadModel(model) {
+  const box = el("pull-progress");
+  const bar = el("pull-bar");
+  const txt = el("pull-text");
+  const btn = el("btn-pull-model");
+  if (!model) return;
+  if (box) box.hidden = false;
+  if (bar) bar.value = 0;
+  if (btn) { btn.disabled = true; btn.textContent = "Downloading…"; }
+  try {
+    const res = await fetch("/api/setup/agent/pull", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let done = false;
+    while (!done) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buf += dec.decode(chunk.value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        if (ev.type === "error") {
+          if (txt) txt.textContent = "🔴 " + (ev.error || "Download failed");
+        } else if (ev.type === "done") {
+          if (bar) bar.value = 100;
+          if (txt) txt.textContent = "✅ Downloaded";
+          done = true;
+        } else {
+          if (bar) bar.value = ev.pct || 0;
+          const mb = `${Math.round(ev.downloaded_mb)}/${Math.round(ev.total_mb)} MB`;
+          const spd = ev.speed_mbps ? ` · ${ev.speed_mbps.toFixed(1)} MB/s` : "";
+          if (txt) txt.textContent = `${ev.phase || ""} ${Math.round(ev.pct || 0)}% · ${mb}${spd}`;
+        }
+      }
+    }
+    await loadAIStatus();
+  } catch (e) {
+    if (txt) txt.textContent = "Error: " + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = "Download"; }
   }
 }
 
